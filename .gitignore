@@ -1,0 +1,20 @@
+node_modules/
+dist/
+coverage/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# SQLite database files
+data/*
+!data/.gitkeep
+
+# User uploads
+uploads/*
+!uploads/.gitkeep
+
+# Logs & OS
+*.log
+.DS_Store
