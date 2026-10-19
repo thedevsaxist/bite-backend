@@ -3,7 +3,7 @@ import { isUniqueConstraintError } from '../../db/errors.js';
 import type { MealRecord } from '../../db/schema/index.js';
 import { AppError } from '../../utils/app-error.js';
 import { analysesRepository } from '../analyses/analyses.repository.js';
-import { imageUrl } from '../analyses/image-storage.js';
+import { imageUrl, imageUrls } from '../analyses/image-storage.js';
 import { nutritionRepository } from '../nutrition/nutrition.repository.js';
 import { itemsFromAnalysis, itemsFromEdits, mealTotals, type MealItemDraft } from './meal-items.js';
 import type { ListMealsQuery, MealChanges, MealItemInput } from './meals.schemas.js';
@@ -141,17 +141,27 @@ export const mealsService = {
   },
 
   /** The food-intake history: meals eaten in the range (default: the last 30 days), newest first. */
-  list(userId: string, { from, to, limit }: ListMealsQuery) {
+  async list(userId: string, { from, to, limit }: ListMealsQuery) {
     const end = to ?? new Date();
     const start = from ?? new Date(end.getTime() - DEFAULT_HISTORY_DAYS * 24 * 60 * 60 * 1000);
     const meals = mealsRepository.listForUser(userId, { from: start, to: end, limit });
+    const mealIds = meals.map((meal) => meal.id);
 
     const rowsByMeal = new Map<string, ItemRow[]>();
-    for (const row of mealsRepository.findItems(meals.map((meal) => meal.id))) {
+    for (const row of mealsRepository.findItems(mealIds)) {
       rowsByMeal.set(row.item.mealId, [...(rowsByMeal.get(row.item.mealId) ?? []), row]);
     }
+
+    // One signing request for the whole page of meals.
+    const references = mealsRepository.findImageReferences(mealIds);
+    const links = await imageUrls(references.map((row) => row.imageReference));
+    const linkByMeal = new Map(references.map((row, index) => [row.mealId, links[index]]));
+
     return {
-      meals: meals.map((meal) => toPublicMeal(meal, rowsByMeal.get(meal.id) ?? [])),
+      meals: meals.map((meal) => ({
+        ...toPublicMeal(meal, rowsByMeal.get(meal.id) ?? []),
+        imageUrl: linkByMeal.get(meal.id) ?? null,
+      })),
       range: { from: start, to: end },
     };
   },

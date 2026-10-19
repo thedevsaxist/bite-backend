@@ -5,8 +5,11 @@ import type { ListMealsQuery, MealChanges, MealIdParams } from './meals.schemas.
 import { mealsService } from './meals.service.js';
 
 export const mealsController = {
-  list(req: Request, res: Response) {
-    sendSuccess(res, mealsService.list(authUser(req).id, req.query as unknown as ListMealsQuery));
+  async list(req: Request, res: Response) {
+    sendSuccess(
+      res,
+      await mealsService.list(authUser(req).id, req.query as unknown as ListMealsQuery),
+    );
   },
 
   async getById(req: Request, res: Response) {

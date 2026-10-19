@@ -270,6 +270,8 @@ user makes later are stored as a separate meal record, so this never changes.
 - `portion.unit`: `g` | `ml` | `serving` (a reference food's typical serving).
 - `imageUrl` is a signed link, valid for `SIGNED_URL_TTL_SECONDS`, when photos are in Supabase, and
   `null` with local storage. In that case load `GET /analyses/:id/image` with the Authorization header.
+  It is also `null` if the photo store can't be reached: the analysis (or meal) is still returned, and
+  the app shows a placeholder instead of the photo.
 - Another user's analysis returns the same `404 ANALYSIS_NOT_FOUND` as an unknown id.
 
 ### Food recognition (Claude or Gemini)
@@ -323,6 +325,8 @@ result; edits only change the meal record, so the two can be compared later.
   evaluation). A meal saved from it gets `status: "disputed"` and stops counting in the summaries
   until the user corrects or confirms it with `PATCH /meals/:id`.
 - **Deleting** a meal keeps the analysis, which can then be validated again.
+- **Photos:** every meal, in `GET /meals` as well as `GET /meals/:id`, has the `imageUrl` of the photo
+  it was analysed from (see above). The list signs all of its photos in one storage request.
 
 Each item in `items` (validate and PATCH):
 

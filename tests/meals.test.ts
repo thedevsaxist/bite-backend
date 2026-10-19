@@ -348,6 +348,8 @@ describe('GET /meals', () => {
       monday,
     ]);
     expect(range.body.data.meals[0].items).toHaveLength(3);
+    // Photos are stored locally in the tests, so there is no direct link.
+    expect(range.body.data.meals[0].imageUrl).toBeNull();
     expect(limited.body.data.meals).toHaveLength(2);
   });
 

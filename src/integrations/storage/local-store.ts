@@ -40,5 +40,9 @@ export function createLocalStore(root: string): ImageStore {
     async signedUrl() {
       return null;
     },
+
+    async signedUrls(paths) {
+      return paths.map(() => null);
+    },
   };
 }

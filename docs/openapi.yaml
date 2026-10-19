@@ -925,14 +925,7 @@ components:
                 type: object
                 required: [meal]
                 properties:
-                  meal:
-                    allOf:
-                      - $ref: '#/components/schemas/Meal'
-                      - type: object
-                        properties:
-                          imageUrl:
-                            type: [string, 'null']
-                            description: Signed photo link (Supabase storage), or null for local storage.
+                  meal: { $ref: '#/components/schemas/Meal' }
     ValidationError:
       description: '`VALIDATION_ERROR`: `details` lists each invalid field (`path`, `message`).'
       content:
@@ -1178,6 +1171,11 @@ components:
         validatedByUser: { type: boolean }
         totals: { $ref: '#/components/schemas/Nutrients' }
         unmatchedItemCount: { type: integer }
+        imageUrl:
+          type: [string, 'null']
+          description: >-
+            Signed photo link (Supabase storage). Null for local storage, or when the photo store
+            can't be reached; the meal is returned either way.
         items:
           type: array
           items:

@@ -8,6 +8,7 @@ const bucket = {
   download: vi.fn(),
   remove: vi.fn(),
   createSignedUrl: vi.fn(),
+  createSignedUrls: vi.fn(),
 };
 const from = vi.fn(() => bucket);
 vi.mock('@supabase/supabase-js', () => ({
@@ -79,6 +80,29 @@ describe('Supabase image store', () => {
     expect(await store.signedUrl('u/missing.jpg', 3600)).toBeNull();
   });
 
+  it('signs several objects in one request, keeping their order', async () => {
+    bucket.createSignedUrls.mockResolvedValueOnce({
+      data: [
+        { path: 'u/2.jpg', signedUrl: 'https://x/sign/2?token=b', error: null },
+        { path: 'u/missing.jpg', signedUrl: '', error: 'Either the object does not exist' },
+        { path: 'u/1.jpg', signedUrl: 'https://x/sign/1?token=a', error: null },
+      ],
+      error: null,
+    });
+
+    expect(await store.signedUrls(['u/1.jpg', 'u/missing.jpg', 'u/2.jpg'], 3600)).toEqual([
+      'https://x/sign/1?token=a',
+      null,
+      'https://x/sign/2?token=b',
+    ]);
+    expect(bucket.createSignedUrls).toHaveBeenCalledWith(
+      ['u/1.jpg', 'u/missing.jpg', 'u/2.jpg'],
+      3600,
+    );
+    expect(await store.signedUrls([], 3600)).toEqual([]);
+    expect(bucket.createSignedUrls).toHaveBeenCalledTimes(1);
+  });
+
   it('removes an object', async () => {
     bucket.remove.mockResolvedValue({ data: [], error: null });
     await store.remove('u/1.jpg');
@@ -90,12 +114,14 @@ describe('Supabase image store', () => {
     bucket.download.mockResolvedValue({ data: null, error: serverError });
     bucket.remove.mockResolvedValue({ data: null, error: serverError });
     bucket.createSignedUrl.mockResolvedValue({ data: null, error: serverError });
+    bucket.createSignedUrls.mockResolvedValue({ data: null, error: serverError });
 
     for (const attempt of [
       store.save('u/1.jpg', Buffer.from('x'), 'image/jpeg'),
       store.read('u/1.jpg'),
       store.remove('u/1.jpg'),
       store.signedUrl('u/1.jpg', 60),
+      store.signedUrls(['u/1.jpg'], 60),
     ]) {
       await expect(attempt).rejects.toMatchObject({ statusCode: 503, code: 'STORAGE_UNAVAILABLE' });
     }

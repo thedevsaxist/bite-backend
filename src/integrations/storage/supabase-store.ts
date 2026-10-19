@@ -59,5 +59,16 @@ export function createSupabaseStore({ url, secretKey, bucket }: SupabaseStoreOpt
       }
       return data.signedUrl;
     },
+
+    async signedUrls(paths, expiresInSeconds) {
+      if (paths.length === 0) return [];
+      const { data, error } = await objects().createSignedUrls(paths, expiresInSeconds);
+      if (error) throw storageUnavailable(error);
+      // Each entry carries its own error, e.g. for a photo that no longer exists.
+      const byPath = new Map(
+        data.map((entry) => [entry.path, entry.error ? null : entry.signedUrl]),
+      );
+      return paths.map((path) => byPath.get(path) ?? null);
+    },
   };
 }

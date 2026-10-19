@@ -13,4 +13,6 @@ export interface ImageStore {
    * direct links (the API then serves the photo itself).
    */
   signedUrl(path: string, expiresInSeconds: number): Promise<string | null>;
+  /** [signedUrl] for several photos in one request, in the same order (null for a missing one). */
+  signedUrls(paths: string[], expiresInSeconds: number): Promise<(string | null)[]>;
 }

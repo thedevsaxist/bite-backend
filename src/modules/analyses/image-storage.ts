@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { env } from '../../config/env.js';
+import { logger } from '../../config/logger.js';
 import { imageStore } from '../../integrations/storage/index.js';
 
 // Meal photos are stored as <userId>/<uuid>.jpg, in the folder or bucket chosen by STORAGE_DRIVER.
@@ -25,7 +26,25 @@ export function deleteImage(reference: string) {
 /**
  * A short-lived link the app can load the photo from, or null when the store has no direct links
  * (local storage), in which case the app uses GET /analyses/:id/image instead.
+ *
+ * Also null when the store can't be reached: a meal or analysis is still worth returning without
+ * its photo, and the app shows a placeholder.
  */
-export function imageUrl(reference: string) {
-  return imageStore().signedUrl(reference, env.SIGNED_URL_TTL_SECONDS);
+export async function imageUrl(reference: string) {
+  try {
+    return await imageStore().signedUrl(reference, env.SIGNED_URL_TTL_SECONDS);
+  } catch (err) {
+    logger.warn({ err }, 'Could not create a photo link');
+    return null;
+  }
+}
+
+/** [imageUrl] for several photos in one request, in the same order. */
+export async function imageUrls(references: string[]) {
+  try {
+    return await imageStore().signedUrls(references, env.SIGNED_URL_TTL_SECONDS);
+  } catch (err) {
+    logger.warn({ err, count: references.length }, 'Could not create photo links');
+    return references.map(() => null);
+  }
 }

@@ -44,6 +44,17 @@ export const mealsRepository = {
       .get();
   },
 
+  /** The photo reference of each meal, from the analysis it was saved from. */
+  findImageReferences(mealIds: string[], executor: Executor = db) {
+    if (mealIds.length === 0) return [];
+    return executor
+      .select({ mealId: mealRecords.id, imageReference: foodAnalyses.imageReference })
+      .from(mealRecords)
+      .innerJoin(foodAnalyses, eq(mealRecords.analysisId, foodAnalyses.id))
+      .where(inArray(mealRecords.id, mealIds))
+      .all();
+  },
+
   findByAnalysis(analysisId: string, executor: Executor = db) {
     return executor.select().from(mealRecords).where(eq(mealRecords.analysisId, analysisId)).get();
   },
