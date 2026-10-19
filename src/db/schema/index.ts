@@ -7,3 +7,4 @@ export * from './auth.js';
 export * from './profile.js';
 export * from './settings.js';
 export * from './nutrition.js';
+export * from './analyses.js';

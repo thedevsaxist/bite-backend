@@ -201,6 +201,54 @@ that path goes in the database, so switching storage needs no migration.
 
 Storage failures return `503` with code `STORAGE_UNAVAILABLE`.
 
+### Food analyses
+
+`GET /analyses/:id` returns one analysis of one photo, exactly as the AI produced it. Corrections the
+user makes later are stored as a separate meal record, so this never changes.
+
+```json
+{
+  "analysis": {
+    "id": "...",
+    "status": "completed",
+    "additionalContext": "Lunch, cooked with palm oil",
+    "imageUrl": "https://<project>.supabase.co/storage/v1/object/sign/...",
+    "items": [
+      {
+        "id": "...",
+        "name": "jollof rice",
+        "nutritionReference": { "id": "...", "key": "jollof_rice", "name": "Jollof rice" },
+        "portion": { "description": "1 plate", "quantity": 300, "unit": "g" },
+        "confidence": 0.92,
+        "nutrients": { "calories": 495, "protein": 9, "carbohydrates": 81, "fat": 15 }
+      },
+      {
+        "name": "zobo drink",
+        "nutritionReference": null,
+        "nutrients": null
+      }
+    ],
+    "totals": { "calories": 495, "protein": 9, "carbohydrates": 81, "fat": 15 },
+    "unmatchedItemCount": 1,
+    "ai": { "provider": "anthropic", "model": "..." },
+    "failureReason": null,
+    "processingTimeMs": 4200,
+    "analysedAt": "...",
+    "createdAt": "..."
+  }
+}
+```
+
+- `status`: `processing` | `completed` | `failed`. A failed analysis has a `failureReason` code, no
+  items and `totals: null`.
+- An item with `nutrients: null` matched no reference food, so it gets no made-up value. It is left out
+  of `totals`, and `unmatchedItemCount` says how many items were left out. The user can pick the right
+  food (`/nutrition/foods`) when editing.
+- `portion.unit`: `g` | `ml` | `serving` (a reference food's typical serving).
+- `imageUrl` is a signed link, valid for `SIGNED_URL_TTL_SECONDS`, when photos are in Supabase, and
+  `null` with local storage. In that case load `GET /analyses/:id/image` with the Authorization header.
+- Another user's analysis returns the same `404 ANALYSIS_NOT_FOUND` as an unknown id.
+
 ### Session handling (for the mobile app)
 
 - The **access token** is a JWT valid for 15 minutes. When it expires, protected routes return

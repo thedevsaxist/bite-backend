@@ -1,13 +1,10 @@
-import type { NutritionalReference } from '../../db/schema/index.js';
+import type { NutritionalReference, QuantityUnit } from '../../db/schema/index.js';
 
 // Calorie estimation (report §3.5.5): Cᵢ = Sᵢ × Cₛ for each item, C_meal = Σ Cᵢ for the meal.
 // The same scaling is applied to protein, carbohydrates and fat.
 
-export const portionUnits = ['g', 'ml', 'serving'] as const;
-export type PortionUnit = (typeof portionUnits)[number];
-
 /** How much of a food was eaten. "serving" means the reference's typical serving. */
-export type Portion = { quantity: number; unit: PortionUnit };
+export type Portion = { quantity: number; unit: QuantityUnit };
 
 export type Nutrients = { calories: number; protein: number; carbohydrates: number; fat: number };
 
