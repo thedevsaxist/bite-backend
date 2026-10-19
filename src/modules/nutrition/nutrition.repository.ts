@@ -1,4 +1,4 @@
-import { asc, eq, or, sql, type AnyColumn } from 'drizzle-orm';
+import { asc, eq, inArray, or, sql, type AnyColumn } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.js';
 import { nutritionalReferences } from '../../db/schema/index.js';
 
@@ -44,6 +44,15 @@ export const nutritionRepository = {
       })
       .from(nutritionalReferences)
       .orderBy(asc(nutritionalReferences.key))
+      .all();
+  },
+
+  findByKeys(keys: string[], executor: Executor = db) {
+    if (keys.length === 0) return [];
+    return executor
+      .select()
+      .from(nutritionalReferences)
+      .where(inArray(nutritionalReferences.key, keys))
       .all();
   },
 

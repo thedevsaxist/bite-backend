@@ -203,6 +203,18 @@ Storage failures return `503` with code `STORAGE_UNAVAILABLE`.
 
 ### Food analyses
 
+`POST /analyses` analyses a meal photo. Send `multipart/form-data` with the photo in `image` and,
+optionally, meal notes in `context` (up to 1000 characters, e.g. "half a plate, fried in palm oil").
+The server validates the photo, stores it, asks Claude what is on the plate, matches each item to a
+reference food, calculates the nutrients and returns the stored analysis (`201`, same shape as below).
+It takes a few seconds, so show a loading state. Each user can start 30 analyses per 15 minutes.
+
+- A matched food without a weight estimate is counted as one typical serving (`unit: "serving"`).
+- If the photo shows no food, the response is `422 NO_FOOD_DETECTED`.
+- When the AI step fails, the error says why (see Food recognition below) and the failed analysis is
+  still stored. Its id is in `error.details.analysisId`.
+- Photo problems (blurry, too small, …) are rejected before anything is stored.
+
 `GET /analyses/:id` returns one analysis of one photo, exactly as the AI produced it. Corrections the
 user makes later are stored as a separate meal record, so this never changes.
 
@@ -230,7 +242,7 @@ user makes later are stored as a separate meal record, so this never changes.
     ],
     "totals": { "calories": 495, "protein": 9, "carbohydrates": 81, "fat": 15 },
     "unmatchedItemCount": 1,
-    "ai": { "provider": "anthropic", "model": "..." },
+    "ai": { "provider": "anthropic", "model": "...", "inputTokens": 2100, "outputTokens": 450 },
     "failureReason": null,
     "processingTimeMs": 4200,
     "analysedAt": "...",

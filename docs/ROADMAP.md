@@ -39,9 +39,11 @@ Decisions:
   - The prompt includes the nutrition catalog so the model maps each item to a reference key or `null`
   - `claude-opus-5-5`, effort `medium`, structured outputs (`messages.parse`), server-side refusal
     fallback (`fallbacks: "default"`)
-- [ ] **8. Analysis pipeline** (FR 7, 14, 15, 20, 21) · module `analyses`
+- [x] **8. Analysis pipeline** (FR 7, 14, 15, 20, 21) · module `analyses`
   - `POST /analyses` (multipart image + optional context): validate → AI → match nutrition → calculate → store
-  - Unmatched items get no calories and are flagged `NO_NUTRITION_MATCH`
+  - Unmatched items get no calories (`nutrients: null`, counted in `unmatchedItemCount`)
+  - No food → `422 NO_FOOD_DETECTED`; AI failures are stored as failed analyses with the reason
+  - Follow-up: live check with real photos once `ANTHROPIC_API_KEY` is in `.env`
 - [ ] **9. Meal records & history** (FR 16, 17, 18, 19) · modules `meals`, `summary`
   - Tables: `meal_records`, `meal_items`
   - Auto-save when `auto_save_results` is on; otherwise `POST /analyses/:id/validate`

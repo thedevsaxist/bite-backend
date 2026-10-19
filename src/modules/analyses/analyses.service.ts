@@ -1,6 +1,7 @@
 import type { FoodAnalysis, RecognisedFoodItem } from '../../db/schema/index.js';
 import { AppError } from '../../utils/app-error.js';
 import { sumNutrients, type Nutrients } from '../nutrition/calorie-calculator.js';
+import { analyseMealPhoto } from './analysis-pipeline.js';
 import { analysesRepository } from './analyses.repository.js';
 import { imageUrl, readImage } from './image-storage.js';
 
@@ -45,7 +46,12 @@ async function toPublicAnalysis(analysis: FoodAnalysis, rows: ItemRow[]) {
     // Totals cover matched items only; unmatchedItemCount says how many were left out.
     totals: completed ? sumNutrients(matched) : null,
     unmatchedItemCount: items.length - matched.length,
-    ai: { provider: analysis.aiProvider, model: analysis.aiModel },
+    ai: {
+      provider: analysis.aiProvider,
+      model: analysis.aiModel,
+      inputTokens: analysis.aiInputTokens,
+      outputTokens: analysis.aiOutputTokens,
+    },
     failureReason: analysis.failureReason,
     processingTimeMs: analysis.processingTimeMs,
     analysedAt: analysis.analysedAt,
@@ -54,6 +60,13 @@ async function toPublicAnalysis(analysis: FoodAnalysis, rows: ItemRow[]) {
 }
 
 export const analysesService = {
+  /** Runs the analysis pipeline on an uploaded photo and returns the stored analysis. */
+  async create(userId: string, photo: Buffer, context?: string) {
+    const id = await analyseMealPhoto(userId, photo, context);
+    // Stage 9: save it to the food-intake history here when auto-save is on.
+    return analysesService.getForUser(userId, id);
+  },
+
   async getForUser(userId: string, id: string) {
     const analysis = analysesRepository.findForUser(id, userId);
     if (!analysis) throw analysisNotFound();

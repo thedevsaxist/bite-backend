@@ -31,6 +31,9 @@ export const foodAnalyses = sqliteTable(
     failureReason: text(),
     // Time the AI call took, for the response-time evaluation (report objective 4).
     processingTimeMs: integer(),
+    // Tokens the AI call used, for the per-analysis cost (report §3.2.2, limitation 3).
+    aiInputTokens: integer(),
+    aiOutputTokens: integer(),
     analysedAt: timestamp(),
     createdAt: createdAt(),
   },
