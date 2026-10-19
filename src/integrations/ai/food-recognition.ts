@@ -22,15 +22,19 @@ export type RecognitionResult = {
   // The provider's raw structured response, stored as food_analyses.ai_result.
   raw: unknown;
   provider: string;
+  // The model that produced the answer (a fallback model if the requested one declined).
   model: string;
+  usage: { inputTokens: number; outputTokens: number };
 };
+
+/** A food the model may map recognised items to (a row of nutritional_references). */
+export type CatalogFood = { key: string; name: string; aliases: string[] };
 
 export type RecognitionInput = {
   image: { data: Buffer; mediaType: 'image/jpeg' | 'image/png' | 'image/webp' };
   // Optional user-provided meal information (ingredients, portion sizes).
   context?: string;
-  // Keys and names from nutritional_references the model may map items to.
-  nutritionCatalog: { key: string; name: string }[];
+  nutritionCatalog: CatalogFood[];
 };
 
 export interface FoodRecognitionProvider {

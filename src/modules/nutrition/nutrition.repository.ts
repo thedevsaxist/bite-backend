@@ -33,6 +33,20 @@ export const nutritionRepository = {
       .all();
   },
 
+  /** Every reference food's key, name and aliases: the catalog the AI model maps items to. */
+  listCatalog(executor: Executor = db) {
+    return executor
+      .select({
+        id: nutritionalReferences.id,
+        key: nutritionalReferences.key,
+        name: nutritionalReferences.foodName,
+        aliases: nutritionalReferences.aliases,
+      })
+      .from(nutritionalReferences)
+      .orderBy(asc(nutritionalReferences.key))
+      .all();
+  },
+
   findById(id: string, executor: Executor = db) {
     return executor
       .select()

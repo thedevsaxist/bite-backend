@@ -50,6 +50,13 @@ const envSchema = z
     // Images whose sharpness score (variance of the Laplacian) is below this are rejected as blurry.
     // Calibrated on food photos: sharp ones scored 180–1340, strongly blurred ones under 20.
     IMAGE_BLUR_THRESHOLD: z.coerce.number().nonnegative().default(30),
+
+    // Food recognition (Claude). Without a key the server still runs; analyses return 503.
+    ANTHROPIC_API_KEY: optionalString,
+    AI_MODEL: z.string().min(1).default('claude-opus-5-5'),
+    // How much the model reasons before answering: higher is slower and costs more.
+    AI_EFFORT: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).default('medium'),
+    AI_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(90),
   })
   .superRefine((env, ctx) => {
     if (env.STORAGE_DRIVER !== 'supabase') return;

@@ -34,9 +34,11 @@ Decisions:
   - Tables: `food_analyses` (keeps the original `ai_result`, plus provider, model, failure reason and
     processing time for evaluation), `recognised_food_items` (nutrients stored per item at analysis time)
   - `GET /analyses/:id` (includes a signed `imageUrl` when stored in Supabase), `GET /analyses/:id/image`
-- [ ] **7. AI recognition (Claude)** (FR 10, 11, 12, 20) · `src/integrations/ai/`
+- [x] **7. AI recognition (Claude)** (FR 10, 11, 12, 20) · `src/integrations/ai/`
   - `prompt.ts`, `providers/anthropic.ts`; Zod-validated structured output; provider errors mapped to API errors
   - The prompt includes the nutrition catalog so the model maps each item to a reference key or `null`
+  - `claude-opus-5-5`, effort `medium`, structured outputs (`messages.parse`), server-side refusal
+    fallback (`fallbacks: "default"`)
 - [ ] **8. Analysis pipeline** (FR 7, 14, 15, 20, 21) · module `analyses`
   - `POST /analyses` (multipart image + optional context): validate → AI → match nutrition → calculate → store
   - Unmatched items get no calories and are flagged `NO_NUTRITION_MATCH`

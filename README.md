@@ -42,7 +42,7 @@ src/
 │   ├── migrate.ts       # Applies migrations from ./drizzle
 │   └── schema/          # Table definitions (one file per feature)
 ├── integrations/
-│   ├── ai/              # Contract for the external food-recognition model + its providers
+│   ├── ai/              # Food recognition: provider interface, prompt + schema, Claude provider
 │   └── storage/         # Photo storage: local folder or Supabase Storage
 ├── middlewares/         # Error handler, 404, request validation, rate limiting, auth
 ├── modules/             # One folder per feature
@@ -248,6 +248,33 @@ user makes later are stored as a separate meal record, so this never changes.
 - `imageUrl` is a signed link, valid for `SIGNED_URL_TTL_SECONDS`, when photos are in Supabase, and
   `null` with local storage. In that case load `GET /analyses/:id/image` with the Authorization header.
 - Another user's analysis returns the same `404 ANALYSIS_NOT_FOUND` as an unknown id.
+
+### Food recognition (Claude)
+
+Meal photos are analysed by Claude (`AI_MODEL`, default `claude-opus-5-5`) through
+`src/integrations/ai/`. The rest of the code only uses the `FoodRecognitionProvider` interface, so
+another model can be added as a new file in `providers/`.
+
+- **Request:** the cleaned-up photo, the user's notes (sent as information about the meal, not as
+  instructions) and the nutrition catalog (every reference food's key, name and aliases).
+- **Answer:** structured output checked against a schema: each visible item with its name, the matching
+  catalog key or `null`, the estimated grams served, a portion description and a 0–1 confidence, plus
+  the model's own calorie estimate for the whole meal. The catalog key can only be a real key, so the
+  model can't invent foods. The calories the user sees are calculated from the reference data, not
+  taken from the model; the model's own estimate is kept for evaluation.
+- **Effort:** `AI_EFFORT` (default `medium`) sets how much the model reasons: higher may be more
+  accurate but is slower and costs more.
+- **Safety fallback:** if Claude's safety classifiers decline a photo, the request is retried
+  server-side on Anthropic's recommended fallback model (`fallbacks: "default"`), and the answer
+  records which model was used.
+
+| Problem                                     | Status | Error code            |
+| ------------------------------------------- | ------ | --------------------- |
+| `ANTHROPIC_API_KEY` missing or rejected     | 503    | `AI_NOT_CONFIGURED`   |
+| Rate limited                                | 503    | `AI_RATE_LIMITED`     |
+| Timeout, network failure or Anthropic error | 503    | `AI_UNAVAILABLE`      |
+| Photo declined by every model               | 422    | `AI_REFUSED`          |
+| Answer unusable                             | 502    | `AI_INVALID_RESPONSE` |
 
 ### Session handling (for the mobile app)
 
