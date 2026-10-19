@@ -38,18 +38,31 @@ src/
 │   ├── index.ts         # SQLite connection + Drizzle client
 │   ├── migrate.ts       # Applies migrations from ./drizzle
 │   └── schema/          # Table definitions (one file per feature)
-├── middlewares/         # Error handler, 404, request validation, rate limiting
+├── integrations/
+│   └── ai/              # Contract for the external food-recognition model + its providers
+├── middlewares/         # Error handler, 404, request validation, rate limiting, auth
 ├── modules/             # One folder per feature
-│   └── health/
-│       ├── health.routes.ts
-│       └── health.controller.ts
+│   ├── health/          # Health check
+│   ├── auth/            # Email/password, Google and Apple sign-in, tokens
+│   ├── users/           # Current user
+│   ├── profile/         # Profile and daily calorie reference        (planned)
+│   ├── settings/        # App preferences, e.g. auto-save            (planned)
+│   ├── nutrition/       # Nutritional reference data                 (planned)
+│   ├── analyses/        # Image upload, AI recognition, estimates    (planned)
+│   ├── meals/           # Meal records (food-intake history)         (planned)
+│   └── summary/         # Intake totals vs daily reference           (planned)
 ├── routes/index.ts      # Mounts every module router under /api/v1
 └── utils/               # AppError, response helpers
 tests/                   # Vitest + Supertest integration tests
+evaluation/              # Recognition and calorie-estimation evaluation (planned)
+docs/ROADMAP.md          # Build stages and what each one covers
 drizzle/                 # Generated SQL migrations (committed)
 data/                    # SQLite database file (git-ignored)
 uploads/                 # Uploaded meal images (git-ignored)
 ```
+
+Planned modules only have a `*.routes.ts` stub listing their endpoints so far. See
+[docs/ROADMAP.md](docs/ROADMAP.md) for the build order.
 
 Each feature module follows the same layering:
 
