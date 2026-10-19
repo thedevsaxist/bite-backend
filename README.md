@@ -81,16 +81,22 @@ Each feature module follows the same layering:
 
 ## Endpoints
 
-| Method | Path             | Auth | Body                                  |
-| ------ | ---------------- | ---- | ------------------------------------- |
-| GET    | `/health`        |      |                                       |
-| POST   | `/auth/register` |      | `{ email, password, name? }`          |
-| POST   | `/auth/login`    |      | `{ email, password }`                 |
-| POST   | `/auth/google`   |      | `{ idToken }`                         |
-| POST   | `/auth/apple`    |      | `{ idToken, nonce?, name? }`          |
-| POST   | `/auth/refresh`  |      | `{ refreshToken }`                    |
-| POST   | `/auth/logout`   |      | `{ refreshToken }` → `204 No Content` |
-| GET    | `/users/me`      | ✓    |                                       |
+| Method | Path                         | Auth | Body                                  |
+| ------ | ---------------------------- | ---- | ------------------------------------- |
+| GET    | `/health`                    |      |                                       |
+| POST   | `/auth/register`             |      | `{ email, password, name? }`          |
+| POST   | `/auth/login`                |      | `{ email, password }`                 |
+| POST   | `/auth/google`               |      | `{ idToken }`                         |
+| POST   | `/auth/apple`                |      | `{ idToken, nonce?, name? }`          |
+| POST   | `/auth/refresh`              |      | `{ refreshToken }`                    |
+| POST   | `/auth/logout`               |      | `{ refreshToken }` → `204 No Content` |
+| GET    | `/users/me`                  | ✓    |                                       |
+| GET    | `/profile`                   | ✓    |                                       |
+| PUT    | `/profile`                   | ✓    | full profile (see below)              |
+| PATCH  | `/profile`                   | ✓    | any subset of the profile fields      |
+| GET    | `/profile/dietary-reference` | ✓    |                                       |
+| GET    | `/settings`                  | ✓    |                                       |
+| PATCH  | `/settings`                  | ✓    | `{ autoSaveResults }`                 |
 
 Register, login, Google and Apple all return:
 
@@ -115,6 +121,33 @@ Register, login, Google and Apple all return:
 ```
 
 `isNewUser` is `true` when the account was just created, so the app can send the user to profile setup.
+
+### Profile and daily calorie reference
+
+`PUT /profile` body (all fields required; `PATCH` accepts any subset once a profile exists):
+
+```json
+{
+  "age": 30,
+  "sex": "male",
+  "weightKg": 80,
+  "heightCm": 180,
+  "activityLevel": "moderate",
+  "weightGoal": "maintain"
+}
+```
+
+- `sex`: `male` | `female` · `age`: 18–120 · `weightKg`: 20–500 · `heightCm`: 50–275
+- `activityLevel`: `sedentary` | `light` | `moderate` | `active` | `very_active`
+- `weightGoal`: `lose` | `maintain` | `gain`
+
+`PUT` and `PATCH` return `{ profile, dietaryReference }`, where `dietaryReference` is
+`{ dailyCalorieReference, bmr, maintenanceCalories, calculatedAt }`. The reference is the
+Mifflin–St Jeor BMR × an activity factor, −500 / 0 / +500 kcal for the goal, and never below
+1500 (male) / 1200 (female) kcal unless maintenance is lower. It is a basic estimate, not dietary advice.
+
+Until the profile is set up, the profile endpoints return `404` with code `PROFILE_NOT_FOUND`.
+Settings need no setup: `GET /settings` returns the defaults (`autoSaveResults: true`).
 
 ### Session handling (for the mobile app)
 

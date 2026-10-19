@@ -1,7 +1,13 @@
 import { Router } from 'express';
+import { requireAuth } from '../../middlewares/require-auth.js';
+import { validate } from '../../middlewares/validate.js';
+import { settingsController } from './settings.controller.js';
+import { patchSettingsSchema } from './settings.schemas.js';
 
-// Stage 3 (report §3.5.3 "User Settings"): per-user app preferences.
-// Planned (all require auth):
-//   GET   /settings   current settings (auto_save_results defaults to true)
-//   PATCH /settings   change one or more settings
+// Report §3.5.3 "User Settings": per-user app preferences.
 export const settingsRouter = Router();
+
+settingsRouter.use(requireAuth);
+
+settingsRouter.get('/', settingsController.get);
+settingsRouter.patch('/', validate({ body: patchSettingsSchema }), settingsController.patch);

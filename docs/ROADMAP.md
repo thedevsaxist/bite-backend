@@ -14,9 +14,10 @@ Decisions:
 
 - [x] **1. Scaffold**: Express 5, TypeScript, SQLite + Drizzle, logging, error handling, tests
 - [x] **2. Auth**: email/password, Google and Apple sign-in, JWT access + rotating refresh tokens (FR 1, 2, 22)
-- [ ] **3. Profile, settings, daily calorie reference** (FR 3, 4) · module `profile`, `settings`
+- [x] **3. Profile, settings, daily calorie reference** (FR 3, 4) · module `profile`, `settings`
   - Tables: `user_profiles`, `user_settings` (`auto_save_results` default `true`), `dietary_references`
-  - `GET /profile`, `PUT /profile`, `GET /profile/dietary-reference`, `GET /settings`, `PATCH /settings`
+  - `GET /profile`, `PUT /profile`, `PATCH /profile`, `GET /profile/dietary-reference`, `GET /settings`,
+    `PATCH /settings`
   - Mifflin–St Jeor BMR × activity factor, adjusted for the weight goal, with a minimum. A new
     `dietary_references` row is written whenever the profile changes.
 - [ ] **4. Nutrition reference data** (FR 13, 21) · module `nutrition`

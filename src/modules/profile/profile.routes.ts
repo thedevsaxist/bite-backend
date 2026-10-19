@@ -1,8 +1,15 @@
 import { Router } from 'express';
+import { requireAuth } from '../../middlewares/require-auth.js';
+import { validate } from '../../middlewares/validate.js';
+import { profileController } from './profile.controller.js';
+import { patchProfileSchema, putProfileSchema } from './profile.schemas.js';
 
-// Stage 3 (report §3.4.1 FR 3–4): user profile and daily calorie reference.
-// Planned (all require auth):
-//   GET  /profile                     current profile (age, sex, weight, height, activity, goal)
-//   PUT  /profile                     create or update the profile; recalculates the reference
-//   GET  /profile/dietary-reference   latest estimated daily calorie reference
+// Report §3.4.1 FR 3–4: user profile and daily calorie reference.
 export const profileRouter = Router();
+
+profileRouter.use(requireAuth);
+
+profileRouter.get('/', profileController.get);
+profileRouter.put('/', validate({ body: putProfileSchema }), profileController.put);
+profileRouter.patch('/', validate({ body: patchProfileSchema }), profileController.patch);
+profileRouter.get('/dietary-reference', profileController.getDietaryReference);
