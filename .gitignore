@@ -15,6 +15,9 @@ data/*
 uploads/*
 !uploads/.gitkeep
 
+# Evaluation runs (generated)
+evaluation/results/
+
 # Logs & OS
 *.log
 .DS_Store

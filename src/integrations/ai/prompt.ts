@@ -1,8 +1,11 @@
 import { z } from 'zod';
-import type { CatalogFood, RecognitionInput } from './food-recognition.js';
+import type { CatalogFood, RecognisedItem, RecognitionInput } from './food-recognition.js';
 
 // The instructions and response schema for food recognition (report §3.5.4). Shared by every
-// provider so that switching models doesn't change what is asked.
+// provider so that switching models doesn't change what is asked or how answers are cleaned up.
+
+/** How much the model reasons before answering (AI_EFFORT); each provider maps it to its own setting. */
+export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 const INSTRUCTIONS = `You analyse photos of meals for a calorie-tracking app used mainly in Nigeria.
 
@@ -75,3 +78,36 @@ export function buildResponseSchema(catalog: CatalogFood[]) {
 }
 
 export type RecognitionResponse = z.infer<ReturnType<typeof buildResponseSchema>>;
+
+const finiteOrNull = (value: number | null) =>
+  value !== null && Number.isFinite(value) ? value : null;
+
+/** Applies the ranges the schema can't express and drops anything unusable. */
+export function normaliseResponse(response: RecognitionResponse): {
+  items: RecognisedItem[];
+  modelCalorieEstimate: number | null;
+} {
+  const items = response.contains_food
+    ? response.items.flatMap((item): RecognisedItem[] => {
+        const name = item.name.trim();
+        if (!name) return [];
+        const grams = finiteOrNull(item.estimated_grams);
+        const confidence = finiteOrNull(item.confidence);
+        return [
+          {
+            name,
+            nutritionKey: item.nutrition_key,
+            estimatedGrams: grams !== null && grams > 0 ? Math.round(grams * 10) / 10 : null,
+            portionDescription: item.portion_description.trim() || null,
+            confidence: confidence === null ? null : Math.min(1, Math.max(0, confidence)),
+          },
+        ];
+      })
+    : [];
+
+  const estimate = finiteOrNull(response.meal_calorie_estimate);
+  return {
+    items,
+    modelCalorieEstimate: estimate !== null && estimate >= 0 ? Math.round(estimate) : null,
+  };
+}

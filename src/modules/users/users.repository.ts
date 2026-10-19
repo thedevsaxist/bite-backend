@@ -14,4 +14,9 @@ export const usersRepository = {
   create(data: NewUser, executor: Executor = db) {
     return executor.insert(users).values(data).returning().get();
   },
+
+  /** Deletes the user; every row that belongs to them goes with it (ON DELETE CASCADE). */
+  delete(id: string, executor: Executor = db) {
+    executor.delete(users).where(eq(users.id, id)).run();
+  },
 };

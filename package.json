@@ -20,6 +20,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
+    "evaluate": "tsx src/evaluation/run.ts",
     "db:studio": "drizzle-kit studio"
   },
   "keywords": [],
@@ -27,6 +28,7 @@
   "license": "ISC",
   "dependencies": {
     "@anthropic-ai/sdk": "0.131.0",
+    "@google/genai": "2.27.0",
     "@supabase/supabase-js": "2.117.2",
     "argon2": "^0.45.1",
     "better-sqlite3": "^13.0.3",
@@ -62,7 +64,8 @@
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.2",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "yaml": "2.9.1"
   },
   "allowScripts": {
     "argon2@0.45.1": true,

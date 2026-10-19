@@ -3,9 +3,12 @@ import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { sqlite } from './db/index.js';
 import { runMigrations } from './db/migrator.js';
+import { scheduleStaleAnalysisCleanup } from './modules/analyses/stale-analyses.js';
 
 // Bring the database schema up to date before accepting requests.
 runMigrations();
+// Analyses left half-done by a previous run (crash, restart during an AI call).
+scheduleStaleAnalysisCleanup();
 
 const app = createApp();
 

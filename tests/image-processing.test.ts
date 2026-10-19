@@ -44,7 +44,8 @@ describe('prepareImage', () => {
     expect((await sharp(fromPng.data).metadata()).hasAlpha).toBe(false);
   });
 
-  it('scales large images down to fit, keeping the aspect ratio', async () => {
+  // Encoding a 6-megapixel test image is slow when the whole suite runs in parallel.
+  it('scales large images down to fit, keeping the aspect ratio', { timeout: 20_000 }, async () => {
     const prepared = await prepareImage(
       await sharpImage({ width: 3000, height: 2000 }).jpeg().toBuffer(),
     );

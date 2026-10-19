@@ -36,6 +36,8 @@ const envSchema = z
 
     GOOGLE_CLIENT_IDS: commaList,
     APPLE_CLIENT_IDS: commaList,
+    // Firebase Auth: the project ID from the Firebase console (Project settings → General).
+    FIREBASE_PROJECT_ID: optionalString,
 
     // Where meal photos are stored: "local" (UPLOAD_DIR on disk) or "supabase" (Supabase Storage).
     STORAGE_DRIVER: z.enum(['local', 'supabase']).default('local'),
@@ -51,9 +53,12 @@ const envSchema = z
     // Calibrated on food photos: sharp ones scored 180–1340, strongly blurred ones under 20.
     IMAGE_BLUR_THRESHOLD: z.coerce.number().nonnegative().default(30),
 
-    // Food recognition (Claude). Without a key the server still runs; analyses return 503.
+    // Food recognition. Without the chosen provider's key the server still runs; analyses return 503.
+    AI_PROVIDER: z.enum(['anthropic', 'gemini']).default('anthropic'),
     ANTHROPIC_API_KEY: optionalString,
-    AI_MODEL: z.string().min(1).default('claude-opus-5-5'),
+    GEMINI_API_KEY: optionalString,
+    // Leave empty for the provider's default model (claude-opus-5-5 / gemini-3.8-flash).
+    AI_MODEL: optionalString,
     // How much the model reasons before answering: higher is slower and costs more.
     AI_EFFORT: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).default('medium'),
     AI_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(90),

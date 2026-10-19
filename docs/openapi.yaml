@@ -1,0 +1,1263 @@
+openapi: 3.1.0
+info:
+  title: Calorie Estimation API
+  version: 1.0.0
+  license:
+    name: ISC
+    identifier: ISC
+  description: |
+    Backend for the AI-based food recognition and calorie estimation app (final-year project).
+    A user photographs a meal; an AI model identifies the foods and portions; the server matches
+    them to nutritional reference data, estimates calories and keeps a food-intake history.
+
+    Every response is JSON in one of two shapes:
+    `{ "success": true, "data": ... }` or
+    `{ "success": false, "error": { "code", "message", "details"? } }`.
+    Clients should branch on `error.code`, not on the message.
+
+    Calorie values are estimates: portion size, hidden ingredients and preparation all affect them.
+servers:
+  - url: http://localhost:4000/api/v1
+    description: Local development
+security:
+  - bearerAuth: []
+tags:
+  - name: Health
+    description: Liveness check.
+  - name: Auth
+    description: Sign-up, sign-in (email/password, Google, Apple, Firebase) and sessions.
+  - name: Users
+    description: The signed-in account.
+  - name: Profile
+    description: User profile and the daily calorie reference.
+  - name: Settings
+    description: App preferences, such as auto-saving results.
+  - name: Nutrition
+    description: Nutritional reference foods.
+  - name: Analyses
+    description: Meal photo analysis by the AI model.
+  - name: Meals
+    description: The food-intake history.
+  - name: Summary
+    description: Intake compared with the daily calorie reference.
+
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      tags: [Health]
+      summary: Check the server is running
+      security: []
+      responses:
+        '200':
+          description: The server is up.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthEnvelope'
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [Auth]
+      summary: Create an account with email and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email, password]
+              properties:
+                email: { type: string, format: email, maxLength: 255 }
+                password: { type: string, minLength: 8, maxLength: 128 }
+                name: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        '201':
+          $ref: '#/components/responses/AuthResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: '`CONFLICT`: an account with this email already exists.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [Auth]
+      summary: Sign in with email and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 1 }
+      responses:
+        '200':
+          $ref: '#/components/responses/AuthResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: '`UNAUTHORIZED`: wrong email or password (the same error for both).'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '403':
+          description: '`ACCOUNT_INACTIVE`: the account is suspended or deleted.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /auth/google:
+    post:
+      operationId: signInWithGoogle
+      tags: [Auth]
+      summary: Sign in with a Google ID token
+      description: |
+        The app signs in with Google itself (`google_sign_in`) and sends the ID token. A verified
+        email that matches an existing account is linked to it. Returns `503
+        PROVIDER_NOT_CONFIGURED` when `GOOGLE_CLIENT_IDS` is not set.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [idToken]
+              properties:
+                idToken: { type: string }
+      responses:
+        '200':
+          $ref: '#/components/responses/AuthResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /auth/apple:
+    post:
+      operationId: signInWithApple
+      tags: [Auth]
+      summary: Sign in with an Apple ID token
+      description: |
+        Apple shares the user's name only on the first sign-in, so the app should pass it on then.
+        Returns `503 PROVIDER_NOT_CONFIGURED` when `APPLE_CLIENT_IDS` is not set.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [idToken]
+              properties:
+                idToken: { type: string }
+                nonce: { type: string, description: 'The raw nonce, if one was used.' }
+                name: { type: string, maxLength: 100 }
+      responses:
+        '200':
+          $ref: '#/components/responses/AuthResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /auth/firebase:
+    post:
+      operationId: signInWithFirebase
+      tags: [Auth]
+      summary: Sign in with a Firebase Auth ID token
+      description: |
+        For apps that sign in through Firebase Auth (Google, or Apple once enabled in Firebase).
+        Returns `503 PROVIDER_NOT_CONFIGURED` when `FIREBASE_PROJECT_ID` is not set.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [idToken]
+              properties:
+                idToken: { type: string }
+                name:
+                  type: string
+                  maxLength: 100
+                  description: Used when the token carries no name.
+      responses:
+        '200':
+          $ref: '#/components/responses/AuthResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /auth/refresh:
+    post:
+      operationId: refreshTokens
+      tags: [Auth]
+      summary: Exchange a refresh token for new tokens
+      description: |
+        Returns a new access token and a new refresh token; the old refresh token stops working.
+        Reusing an old refresh token signs the user out everywhere. Run one refresh at a time.
+      security: []
+      requestBody:
+        $ref: '#/components/requestBodies/RefreshToken'
+      responses:
+        '200':
+          description: New tokens.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { const: true }
+                  data:
+                    type: object
+                    required: [tokens]
+                    properties:
+                      tokens: { $ref: '#/components/schemas/Tokens' }
+        '401':
+          description: '`INVALID_REFRESH_TOKEN`: the session is over; send the user to sign-in.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [Auth]
+      summary: Sign out this device
+      security: []
+      requestBody:
+        $ref: '#/components/requestBodies/RefreshToken'
+      responses:
+        '204':
+          description: Signed out.
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /users/me:
+    get:
+      operationId: getCurrentUser
+      tags: [Users]
+      summary: The signed-in user
+      responses:
+        '200':
+          description: The user.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { const: true }
+                  data:
+                    type: object
+                    required: [user]
+                    properties:
+                      user: { $ref: '#/components/schemas/User' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      operationId: deleteAccount
+      tags: [Users]
+      summary: Permanently delete the account
+      description: |
+        Deletes the account and everything stored for it: profile, settings, analyses, meal
+        history, sessions and meal photos. Accounts with a password must send it; Google/Apple-only
+        accounts may send no body.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                password: { type: string }
+      responses:
+        '204':
+          description: Deleted. Existing tokens stop working at once.
+        '400':
+          description: '`PASSWORD_REQUIRED`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: '`INVALID_PASSWORD`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /profile:
+    get:
+      operationId: getProfile
+      tags: [Profile]
+      summary: The user's profile
+      responses:
+        '200':
+          description: The profile.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { const: true }
+                  data:
+                    type: object
+                    required: [profile]
+                    properties:
+                      profile: { $ref: '#/components/schemas/Profile' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/ProfileNotFound'
+    put:
+      operationId: putProfile
+      tags: [Profile]
+      summary: Create or replace the profile
+      description: Recalculates the daily calorie reference.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ProfileFields'
+                - required: [age, sex, weightKg, heightCm, activityLevel, weightGoal]
+      responses:
+        '200':
+          $ref: '#/components/responses/ProfileWithReference'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      operationId: updateProfile
+      tags: [Profile]
+      summary: Change some profile fields
+      description: Recalculates the daily calorie reference. At least one field.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ProfileFields'
+                - minProperties: 1
+      responses:
+        '200':
+          $ref: '#/components/responses/ProfileWithReference'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/ProfileNotFound'
+
+  /profile/dietary-reference:
+    get:
+      operationId: getDietaryReference
+      tags: [Profile]
+      summary: The latest daily calorie reference
+      responses:
+        '200':
+          description: The reference.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { const: true }
+                  data:
+                    type: object
+                    required: [dietaryReference]
+                    properties:
+                      dietaryReference: { $ref: '#/components/schemas/DietaryReference' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/ProfileNotFound'
+
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [Settings]
+      summary: The user's settings
+      responses:
+        '200':
+          $ref: '#/components/responses/Settings'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      operationId: updateSettings
+      tags: [Settings]
+      summary: Change settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              minProperties: 1
+              properties:
+                autoSaveResults:
+                  type: boolean
+                  description: Save analysis results to the history automatically (default true).
+      responses:
+        '200':
+          $ref: '#/components/responses/Settings'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /nutrition/foods:
+    get:
+      operationId: searchFoods
+      tags: [Nutrition]
+      summary: Search the reference foods
+      description: Matches names and aliases, ignoring case; names starting with the query come first.
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 100 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Matching foods.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { const: true }
+                  data:
+                    type: object
+                    required: [foods]
+                    properties:
+                      foods:
+                        type: array
+                        items: { $ref: '#/components/schemas/Food' }
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /nutrition/foods/{id}:
+    get:
+      operationId: getFood
+      tags: [Nutrition]
+      summary: One reference food
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: The food.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { const: true }
+                  data:
+                    type: object
+                    required: [food]
+                    properties:
+                      food: { $ref: '#/components/schemas/Food' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: '`FOOD_NOT_FOUND`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /analyses:
+    post:
+      operationId: analyseMeal
+      tags: [Analyses]
+      summary: Analyse a meal photo
+      description: |
+        Validates the photo, stores it, asks the AI model what is on the plate, matches each item
+        to a reference food and calculates the nutrients. Takes several seconds. With auto-save on,
+        the result is also saved to the history (`analysis.meal`).
+
+        Rejected before anything is stored: `IMAGE_REQUIRED`, `LIMIT_FILE_SIZE`, `INVALID_IMAGE`,
+        `UNSUPPORTED_IMAGE_TYPE` (JPEG, PNG or WebP only), `IMAGE_TOO_LARGE`, `IMAGE_TOO_SMALL`,
+        `IMAGE_TOO_BLURRY`, `AI_NOT_CONFIGURED`.
+
+        Stored as a failed analysis, with its id in `error.details.analysisId`:
+        `NO_FOOD_DETECTED`, `AI_REFUSED`, `AI_RATE_LIMITED`, `AI_UNAVAILABLE`,
+        `AI_INVALID_RESPONSE`, `AI_REQUEST_FAILED`.
+
+        Limited to 30 analyses per user per 15 minutes.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: The meal photo (max 10 MB by default).
+                context:
+                  type: string
+                  maxLength: 1000
+                  description: Optional notes, e.g. "half a plate, fried in palm oil".
+      responses:
+        '201':
+          $ref: '#/components/responses/Analysis'
+        '400':
+          $ref: '#/components/responses/ErrorWithCode'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/ErrorWithCode'
+        '415':
+          $ref: '#/components/responses/ErrorWithCode'
+        '422':
+          $ref: '#/components/responses/ErrorWithCode'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '502':
+          $ref: '#/components/responses/ErrorWithCode'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /analyses/{id}:
+    get:
+      operationId: getAnalysis
+      tags: [Analyses]
+      summary: One analysis, as the AI produced it
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          $ref: '#/components/responses/Analysis'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/AnalysisNotFound'
+
+  /analyses/{id}/image:
+    get:
+      operationId: getAnalysisImage
+      tags: [Analyses]
+      summary: The analysed photo
+      description: Use this when `imageUrl` is null (local photo storage).
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: The photo.
+          content:
+            image/jpeg:
+              schema: { type: string, format: binary }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: '`ANALYSIS_NOT_FOUND` or `IMAGE_NOT_FOUND`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /analyses/{id}/validate:
+    post:
+      operationId: validateAnalysis
+      tags: [Analyses]
+      summary: Save the result to the history (auto-save off)
+      description: Send no body to accept the result as it is, or corrections.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MealChanges' }
+      responses:
+        '201':
+          $ref: '#/components/responses/Meal'
+        '400':
+          $ref: '#/components/responses/MealItemError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/AnalysisNotFound'
+        '409':
+          description: '`MEAL_ALREADY_SAVED` (with `details.mealId`) or `ANALYSIS_NOT_COMPLETED`.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /analyses/{id}/dispute:
+    post:
+      operationId: disputeAnalysis
+      tags: [Analyses]
+      summary: Report that the result doesn't represent the meal
+      description: A meal saved from it stops counting in the summaries until corrected or confirmed.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                reason: { type: string, maxLength: 500 }
+      responses:
+        '200':
+          $ref: '#/components/responses/Analysis'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/AnalysisNotFound'
+        '409':
+          description: '`ANALYSIS_NOT_COMPLETED`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  /meals:
+    get:
+      operationId: listMeals
+      tags: [Meals]
+      summary: The food-intake history
+      description: Meals eaten in the range, newest first. Defaults to the last 30 days.
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        '200':
+          description: The meals.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { const: true }
+                  data:
+                    type: object
+                    required: [meals, range]
+                    properties:
+                      meals:
+                        type: array
+                        items: { $ref: '#/components/schemas/Meal' }
+                      range:
+                        type: object
+                        properties:
+                          from: { type: string, format: date-time }
+                          to: { type: string, format: date-time }
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /meals/{id}:
+    get:
+      operationId: getMeal
+      tags: [Meals]
+      summary: One meal record
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          $ref: '#/components/responses/Meal'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/MealNotFound'
+    patch:
+      operationId: updateMeal
+      tags: [Meals]
+      summary: Correct or confirm a meal
+      description: |
+        `items` replaces all items and recalculates the nutrients. An empty body confirms the meal
+        as it is. Either way the meal counts as reviewed, and a disputed meal is restored.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MealChanges' }
+      responses:
+        '200':
+          $ref: '#/components/responses/Meal'
+        '400':
+          $ref: '#/components/responses/MealItemError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/MealNotFound'
+    delete:
+      operationId: deleteMeal
+      tags: [Meals]
+      summary: Remove a meal from the history
+      description: The analysis is kept and can be saved again.
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/MealNotFound'
+
+  /summary/daily:
+    get:
+      operationId: getDailySummary
+      tags: [Summary]
+      summary: One day's intake against the daily calorie reference
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - $ref: '#/components/parameters/Timezone'
+      responses:
+        '200':
+          description: The day.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { const: true }
+                  data:
+                    type: object
+                    required: [summary]
+                    properties:
+                      summary:
+                        allOf:
+                          - $ref: '#/components/schemas/DaySummary'
+                          - type: object
+                            properties:
+                              timezone: { type: string }
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /summary:
+    get:
+      operationId: getSummary
+      tags: [Summary]
+      summary: Daily intake over a period (up to 92 days)
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - $ref: '#/components/parameters/Timezone'
+      responses:
+        '200':
+          description: Every day in the range, with totals and averages.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { const: true }
+                  data:
+                    type: object
+                    required: [summary]
+                    properties:
+                      summary: { $ref: '#/components/schemas/RangeSummary' }
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        The access token from sign-in, valid 15 minutes. An expired token returns `401
+        TOKEN_EXPIRED`: refresh once, then retry. A deleted or suspended account returns `401
+        ACCOUNT_UNAVAILABLE`.
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    Timezone:
+      name: timezone
+      in: query
+      description: IANA timezone of the device; meals are grouped by calendar day in it.
+      schema: { type: string, default: Africa/Lagos, examples: [Africa/Lagos] }
+
+  requestBodies:
+    RefreshToken:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [refreshToken]
+            properties:
+              refreshToken: { type: string }
+
+  responses:
+    AuthResult:
+      description: Signed in.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success: { const: true }
+              data:
+                type: object
+                required: [user, tokens, isNewUser]
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+                  tokens: { $ref: '#/components/schemas/Tokens' }
+                  isNewUser:
+                    type: boolean
+                    description: True when the account was just created (send the user to profile setup).
+    ProfileWithReference:
+      description: The saved profile and the daily calorie reference.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success: { const: true }
+              data:
+                type: object
+                required: [profile, dietaryReference]
+                properties:
+                  profile: { $ref: '#/components/schemas/Profile' }
+                  dietaryReference: { $ref: '#/components/schemas/DietaryReference' }
+    Settings:
+      description: The settings.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success: { const: true }
+              data:
+                type: object
+                required: [settings]
+                properties:
+                  settings: { $ref: '#/components/schemas/Settings' }
+    Analysis:
+      description: The analysis.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success: { const: true }
+              data:
+                type: object
+                required: [analysis]
+                properties:
+                  analysis: { $ref: '#/components/schemas/Analysis' }
+    Meal:
+      description: The meal record.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [success, data]
+            properties:
+              success: { const: true }
+              data:
+                type: object
+                required: [meal]
+                properties:
+                  meal:
+                    allOf:
+                      - $ref: '#/components/schemas/Meal'
+                      - type: object
+                        properties:
+                          imageUrl:
+                            type: [string, 'null']
+                            description: Signed photo link (Supabase storage), or null for local storage.
+    ValidationError:
+      description: '`VALIDATION_ERROR`: `details` lists each invalid field (`path`, `message`).'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    MealItemError:
+      description: |
+        `VALIDATION_ERROR`, `UNKNOWN_RECOGNISED_ITEM`, `UNKNOWN_NUTRITION_REFERENCE` or
+        `PORTION_NEEDS_REFERENCE` (with `details.path`, e.g. `items.2`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    ErrorWithCode:
+      description: An error; see the operation description for the codes.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Unauthorized:
+      description: '`UNAUTHORIZED`, `TOKEN_EXPIRED` or `ACCOUNT_UNAVAILABLE`.'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    TooManyRequests:
+      description: '`TOO_MANY_REQUESTS`'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    ServiceUnavailable:
+      description: An external service is not configured or not reachable (e.g. `AI_NOT_CONFIGURED`, `AI_UNAVAILABLE`, `STORAGE_UNAVAILABLE`, `PROVIDER_NOT_CONFIGURED`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    ProfileNotFound:
+      description: '`PROFILE_NOT_FOUND`: the profile has not been set up yet.'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    AnalysisNotFound:
+      description: "`ANALYSIS_NOT_FOUND` (also for other users' analyses)."
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    MealNotFound:
+      description: "`MEAL_NOT_FOUND` (also for other users' meals)."
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+
+  schemas:
+    ErrorEnvelope:
+      type: object
+      required: [success, error]
+      properties:
+        success: { const: false }
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, examples: [VALIDATION_ERROR] }
+            message: { type: string }
+            details: {}
+
+    HealthEnvelope:
+      type: object
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          properties:
+            status: { const: ok }
+            uptime: { type: number }
+            timestamp: { type: string, format: date-time }
+
+    User:
+      type: object
+      required: [id, email, name, hasPassword, accountStatus, createdAt]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        name: { type: [string, 'null'] }
+        hasPassword: { type: boolean }
+        accountStatus: { enum: [active, suspended, deleted] }
+        createdAt: { type: string, format: date-time }
+
+    Tokens:
+      type: object
+      required: [accessToken, refreshToken, tokenType, expiresIn]
+      properties:
+        accessToken: { type: string }
+        refreshToken:
+          type: string
+          description: Valid 30 days. Store the new one after every refresh.
+        tokenType: { const: Bearer }
+        expiresIn: { type: integer, description: Access token lifetime in seconds. }
+
+    ProfileFields:
+      type: object
+      additionalProperties: false
+      properties:
+        age: { type: integer, minimum: 18, maximum: 120 }
+        sex: { enum: [male, female] }
+        weightKg: { type: number, minimum: 20, maximum: 500 }
+        heightCm: { type: number, minimum: 50, maximum: 275 }
+        activityLevel: { enum: [sedentary, light, moderate, active, very_active] }
+        weightGoal: { enum: [lose, maintain, gain] }
+
+    Profile:
+      type: object
+      properties:
+        age: { type: integer }
+        sex: { enum: [male, female] }
+        weightKg: { type: number }
+        heightCm: { type: number }
+        activityLevel: { enum: [sedentary, light, moderate, active, very_active] }
+        weightGoal: { enum: [lose, maintain, gain] }
+        updatedAt: { type: string, format: date-time }
+
+    DietaryReference:
+      type: object
+      description: |
+        Mifflin–St Jeor BMR × activity factor, −500 / 0 / +500 kcal for the goal, never below
+        1500 (male) / 1200 (female) kcal unless maintenance is lower. A basic estimate, not advice.
+      properties:
+        dailyCalorieReference: { type: integer }
+        bmr: { type: integer }
+        maintenanceCalories: { type: integer }
+        calculatedAt: { type: string, format: date-time }
+
+    Settings:
+      type: object
+      properties:
+        autoSaveResults: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+
+    Nutrients:
+      type: object
+      required: [calories, protein, carbohydrates, fat]
+      properties:
+        calories: { type: number, description: kcal }
+        protein: { type: number, description: grams }
+        carbohydrates: { type: number, description: grams }
+        fat: { type: number, description: grams }
+
+    Food:
+      type: object
+      description: A reference food. Nutrient values are for `servingSize` `servingUnit` (100 g).
+      properties:
+        id: { type: string }
+        key: { type: string, examples: [jollof_rice] }
+        name: { type: string }
+        aliases: { type: array, items: { type: string } }
+        servingSize: { type: number }
+        servingUnit: { enum: [g, ml] }
+        calories: { type: number }
+        protein: { type: number }
+        carbohydrates: { type: number }
+        fat: { type: number }
+        typicalServing:
+          type: object
+          properties:
+            size: { type: number }
+            label: { type: string, examples: [1 plate] }
+        source: { type: string }
+
+    FoodRef:
+      type: [object, 'null']
+      description: The matched reference food, or null if none matched.
+      properties:
+        id: { type: string }
+        key: { type: string }
+        name: { type: string }
+
+    Analysis:
+      type: object
+      properties:
+        id: { type: string }
+        status: { enum: [processing, completed, failed] }
+        additionalContext: { type: [string, 'null'] }
+        imageUrl:
+          type: [string, 'null']
+          description: Signed photo link (Supabase storage); null for local storage.
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              name: { type: string }
+              nutritionReference: { $ref: '#/components/schemas/FoodRef' }
+              portion:
+                type: object
+                properties:
+                  description: { type: [string, 'null'] }
+                  quantity: { type: [number, 'null'] }
+                  unit:
+                    enum: [g, ml, serving, null]
+                    description: '`serving` is one typical serving of the reference food.'
+              confidence: { type: [number, 'null'], minimum: 0, maximum: 1 }
+              nutrients:
+                oneOf:
+                  - $ref: '#/components/schemas/Nutrients'
+                  - type: 'null'
+                description: Null when no reference food matched (left out of the totals).
+        totals:
+          oneOf:
+            - $ref: '#/components/schemas/Nutrients'
+            - type: 'null'
+          description: Over matched items; null unless completed.
+        unmatchedItemCount: { type: integer }
+        ai:
+          type: object
+          properties:
+            provider: { type: [string, 'null'], examples: [gemini] }
+            model: { type: [string, 'null'] }
+            inputTokens: { type: [integer, 'null'] }
+            outputTokens: { type: [integer, 'null'] }
+        failureReason: { type: [string, 'null'], examples: [NO_FOOD_DETECTED] }
+        meal:
+          type: [object, 'null']
+          description: The meal record saved from this analysis, or null.
+          properties:
+            id: { type: string }
+            status: { enum: [saved, disputed] }
+            validatedByUser: { type: boolean }
+        dispute:
+          type: [object, 'null']
+          properties:
+            reason: { type: [string, 'null'] }
+            disputedAt: { type: string, format: date-time }
+        processingTimeMs: { type: [integer, 'null'] }
+        analysedAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    Meal:
+      type: object
+      properties:
+        id: { type: string }
+        analysisId: { type: string }
+        mealDate: { type: string, format: date-time }
+        status:
+          enum: [saved, disputed]
+          description: Disputed meals don't count in the summaries.
+        validatedByUser: { type: boolean }
+        totals: { $ref: '#/components/schemas/Nutrients' }
+        unmatchedItemCount: { type: integer }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              name: { type: string }
+              recognisedItemId: { type: [string, 'null'] }
+              nutritionReference: { $ref: '#/components/schemas/FoodRef' }
+              portion:
+                type: object
+                properties:
+                  quantity: { type: [number, 'null'] }
+                  unit: { enum: [g, ml, serving, null] }
+              nutrients:
+                oneOf:
+                  - $ref: '#/components/schemas/Nutrients'
+                  - type: 'null'
+              wasModified:
+                type: boolean
+                description: True when the user changed or added this item.
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    MealItemInput:
+      type: object
+      additionalProperties: false
+      required: [name, quantity, unit]
+      description: |
+        With `nutritionReferenceId`, nutrients are calculated (don't send them). Without one, send
+        `calories` (and optionally macros; missing ones count as 0), or the item is saved without
+        nutrients.
+      properties:
+        recognisedItemId:
+          type: string
+          description: The analysis item this corrects; leave out for an added food.
+        name: { type: string, minLength: 1, maxLength: 150 }
+        nutritionReferenceId: { type: [string, 'null'] }
+        quantity: { type: number, exclusiveMinimum: 0, maximum: 10000 }
+        unit: { enum: [g, ml, serving] }
+        calories: { type: number, minimum: 0, maximum: 20000 }
+        protein: { type: number, minimum: 0, maximum: 2000 }
+        carbohydrates: { type: number, minimum: 0, maximum: 2000 }
+        fat: { type: number, minimum: 0, maximum: 2000 }
+
+    MealChanges:
+      type: object
+      additionalProperties: false
+      properties:
+        mealDate:
+          type: string
+          format: date-time
+          description: When the meal was eaten (defaults to the analysis time).
+        items:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items: { $ref: '#/components/schemas/MealItemInput' }
+
+    DaySummary:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        totals: { $ref: '#/components/schemas/Nutrients' }
+        mealCount: { type: integer }
+        dailyCalorieReference:
+          type: [integer, 'null']
+          description: The reference that applied that day; null before the profile existed.
+        remainingCalories: { type: [number, 'null'] }
+        percentOfReference: { type: [integer, 'null'] }
+
+    RangeSummary:
+      type: object
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        timezone: { type: string }
+        days:
+          type: array
+          items: { $ref: '#/components/schemas/DaySummary' }
+        totals: { $ref: '#/components/schemas/Nutrients' }
+        loggedDays: { type: integer, description: Days with at least one meal. }
+        averagePerLoggedDay: { $ref: '#/components/schemas/Nutrients' }

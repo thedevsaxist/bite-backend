@@ -14,19 +14,20 @@ npm run dev            # http://localhost:4000/api/v1/health
 
 ## Scripts
 
-| Script                | What it does                                                |
-| --------------------- | ----------------------------------------------------------- |
-| `npm run dev`         | Start the server with live reload (tsx watch)               |
-| `npm run build`       | Compile TypeScript to `dist/`                               |
-| `npm start`           | Run the compiled server                                     |
-| `npm test`            | Run the test suite (Vitest + Supertest)                     |
-| `npm run typecheck`   | Type-check without emitting                                 |
-| `npm run lint`        | Lint with ESLint                                            |
-| `npm run format`      | Format with Prettier                                        |
-| `npm run db:generate` | Generate a SQL migration from changes in `src/db/schema/`   |
-| `npm run db:migrate`  | Apply pending migrations to the database                    |
-| `npm run db:seed`     | Load or update the nutritional reference data (re-runnable) |
-| `npm run db:studio`   | Open Drizzle Studio to browse the database                  |
+| Script                | What it does                                                       |
+| --------------------- | ------------------------------------------------------------------ |
+| `npm run dev`         | Start the server with live reload (tsx watch)                      |
+| `npm run build`       | Compile TypeScript to `dist/`                                      |
+| `npm start`           | Run the compiled server                                            |
+| `npm test`            | Run the test suite (Vitest + Supertest)                            |
+| `npm run typecheck`   | Type-check without emitting                                        |
+| `npm run lint`        | Lint with ESLint                                                   |
+| `npm run format`      | Format with Prettier                                               |
+| `npm run db:generate` | Generate a SQL migration from changes in `src/db/schema/`          |
+| `npm run db:migrate`  | Apply pending migrations to the database                           |
+| `npm run db:seed`     | Load or update the nutritional reference data (re-runnable)        |
+| `npm run evaluate`    | Run the evaluation on the labelled test photos (see `evaluation/`) |
+| `npm run db:studio`   | Open Drizzle Studio to browse the database                         |
 
 ## Project structure
 
@@ -42,7 +43,7 @@ src/
 │   ├── migrate.ts       # Applies migrations from ./drizzle
 │   └── schema/          # Table definitions (one file per feature)
 ├── integrations/
-│   ├── ai/              # Food recognition: provider interface, prompt + schema, Claude provider
+│   ├── ai/              # Food recognition: provider interface, prompt + schema, Claude and Gemini
 │   └── storage/         # Photo storage: local folder or Supabase Storage
 ├── middlewares/         # Error handler, 404, request validation, rate limiting, auth
 ├── modules/             # One folder per feature
@@ -55,10 +56,11 @@ src/
 │   ├── analyses/        # Image upload, AI recognition, estimates    (planned)
 │   ├── meals/           # Meal records (food-intake history)         (planned)
 │   └── summary/         # Intake totals vs daily reference           (planned)
+├── evaluation/          # npm run evaluate: metrics and report for the labelled test photos
 ├── routes/index.ts      # Mounts every module router under /api/v1
 └── utils/               # AppError, response helpers
 tests/                   # Vitest + Supertest integration tests
-evaluation/              # Recognition and calorie-estimation evaluation (planned)
+evaluation/              # Test photos + labels for the evaluation (code in src/evaluation/)
 docs/ROADMAP.md          # Build stages and what each one covers
 drizzle/                 # Generated SQL migrations (committed)
 data/                    # SQLite database file (git-ignored)
@@ -76,12 +78,20 @@ Each feature module follows the same layering:
 - **repository**: database queries with Drizzle
 - **schemas**: Zod schemas for request validation and their inferred types
 
+## API reference
+
+The full API is described in [docs/openapi.yaml](docs/openapi.yaml) (OpenAPI 3.1): every endpoint,
+request and response shape and error code. Import it into Postman, Insomnia or Swagger UI, or generate a
+Dart client from it. A test checks it lists exactly the routes the code implements.
+Deployment and the hardware/software requirements are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
 ## API conventions
 
 - Base path: `/api/v1`
 - Success: `{ "success": true, "data": ... }`
 - Error: `{ "success": false, "error": { "code": "NOT_FOUND", "message": "...", "details": ... } }`
-- Protected routes need `Authorization: Bearer <accessToken>`.
+- Protected routes need `Authorization: Bearer <accessToken>`. A deleted or suspended account gets
+  `401 ACCOUNT_UNAVAILABLE` at once, even with an unexpired token.
 
 ## Endpoints
 
@@ -92,6 +102,7 @@ Each feature module follows the same layering:
 | POST   | `/auth/login`                |      | `{ email, password }`                 |
 | POST   | `/auth/google`               |      | `{ idToken }`                         |
 | POST   | `/auth/apple`                |      | `{ idToken, nonce?, name? }`          |
+| POST   | `/auth/firebase`             |      | `{ idToken, name? }`                  |
 | POST   | `/auth/refresh`              |      | `{ refreshToken }`                    |
 | POST   | `/auth/logout`               |      | `{ refreshToken }` → `204 No Content` |
 | GET    | `/users/me`                  | ✓    |                                       |
@@ -102,7 +113,7 @@ Each feature module follows the same layering:
 | GET    | `/settings`                  | ✓    |                                       |
 | PATCH  | `/settings`                  | ✓    | `{ autoSaveResults }`                 |
 
-Register, login, Google and Apple all return:
+Register, login, Google, Apple and Firebase all return:
 
 ```json
 {
@@ -261,32 +272,40 @@ user makes later are stored as a separate meal record, so this never changes.
   `null` with local storage. In that case load `GET /analyses/:id/image` with the Authorization header.
 - Another user's analysis returns the same `404 ANALYSIS_NOT_FOUND` as an unknown id.
 
-### Food recognition (Claude)
+### Food recognition (Claude or Gemini)
 
-Meal photos are analysed by Claude (`AI_MODEL`, default `claude-opus-5-5`) through
-`src/integrations/ai/`. The rest of the code only uses the `FoodRecognitionProvider` interface, so
-another model can be added as a new file in `providers/`.
+Meal photos are analysed by the AI service chosen with `AI_PROVIDER` in `src/integrations/ai/`:
+
+| `AI_PROVIDER`         | Key                 | Default model (`AI_MODEL`) |
+| --------------------- | ------------------- | -------------------------- |
+| `anthropic` (default) | `ANTHROPIC_API_KEY` | `claude-opus-5-5`          |
+| `gemini`              | `GEMINI_API_KEY`    | `gemini-3.8-flash`         |
+
+Both providers get the same instructions and schema (`prompt.ts`) and return the same result, so the
+rest of the app doesn't know which one ran. The analysis records the provider and model that answered.
+Another service can be added as a new file in `providers/`.
 
 - **Request:** the cleaned-up photo, the user's notes (sent as information about the meal, not as
   instructions) and the nutrition catalog (every reference food's key, name and aliases).
-- **Answer:** structured output checked against a schema: each visible item with its name, the matching
-  catalog key or `null`, the estimated grams served, a portion description and a 0–1 confidence, plus
-  the model's own calorie estimate for the whole meal. The catalog key can only be a real key, so the
-  model can't invent foods. The calories the user sees are calculated from the reference data, not
-  taken from the model; the model's own estimate is kept for evaluation.
+- **Answer:** JSON checked against a schema: each visible item with its name, the matching catalog key
+  or `null`, the estimated grams served, a portion description and a 0–1 confidence, plus the model's
+  own calorie estimate for the whole meal. The catalog key can only be a real key, so the model can't
+  invent foods. The calories the user sees are calculated from the reference data, not taken from the
+  model; the model's own estimate is kept for evaluation.
 - **Effort:** `AI_EFFORT` (default `medium`) sets how much the model reasons: higher may be more
-  accurate but is slower and costs more.
-- **Safety fallback:** if Claude's safety classifiers decline a photo, the request is retried
-  server-side on Anthropic's recommended fallback model (`fallbacks: "default"`), and the answer
-  records which model was used.
+  accurate but is slower and costs more. For Gemini it maps to the thinking level (`low`/`medium`/`high`;
+  `xhigh` and `max` use `high`).
+- **Claude:** structured outputs, and if Claude's safety classifiers decline a photo the request is
+  retried server-side on Anthropic's recommended fallback model (`fallbacks: "default"`).
+- **Gemini:** a JSON response schema; the answer is validated against the same Zod schema.
 
-| Problem                                     | Status | Error code            |
-| ------------------------------------------- | ------ | --------------------- |
-| `ANTHROPIC_API_KEY` missing or rejected     | 503    | `AI_NOT_CONFIGURED`   |
-| Rate limited                                | 503    | `AI_RATE_LIMITED`     |
-| Timeout, network failure or Anthropic error | 503    | `AI_UNAVAILABLE`      |
-| Photo declined by every model               | 422    | `AI_REFUSED`          |
-| Answer unusable                             | 502    | `AI_INVALID_RESPONSE` |
+| Problem                                   | Status | Error code            |
+| ----------------------------------------- | ------ | --------------------- |
+| API key missing or rejected               | 503    | `AI_NOT_CONFIGURED`   |
+| Rate limited                              | 503    | `AI_RATE_LIMITED`     |
+| Timeout, network failure or service error | 503    | `AI_UNAVAILABLE`      |
+| Photo declined by every model             | 422    | `AI_REFUSED`          |
+| Answer unusable                           | 502    | `AI_INVALID_RESPONSE` |
 
 ### Meal records (food-intake history)
 
@@ -369,3 +388,12 @@ The app signs in with Google (`google_sign_in`) or Apple (`sign_in_with_apple`) 
 resulting ID token here; the server verifies it against Google's/Apple's public keys. Set
 `GOOGLE_CLIENT_IDS` / `APPLE_CLIENT_IDS` in `.env`, otherwise the endpoint returns `503`.
 A social sign-in with the same verified email as an existing account is linked to that account.
+
+**With Firebase Auth** the app signs in through Firebase instead and sends
+`await FirebaseAuth.instance.currentUser!.getIdToken()` to `POST /auth/firebase`. The server checks
+the token against Firebase's public keys (no service account needed), so only
+`FIREBASE_PROJECT_ID` has to be set. Google sign-in is accepted, and Apple will be too once it is
+enabled in Firebase; other Firebase methods (email, phone, anonymous) get `400`. The response is our
+own access and refresh tokens, as for every other sign-in, so the app uses those from then on, not
+the Firebase token. Identities are stored under Google's/Apple's own user ID, so an account is the
+same whether the user signed in through Firebase or `/auth/google`.

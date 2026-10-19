@@ -1,13 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  createAnthropicProvider,
-  normaliseResponse,
-} from '../src/integrations/ai/providers/anthropic.js';
+import { createAnthropicProvider } from '../src/integrations/ai/providers/anthropic.js';
 import {
   buildResponseSchema,
   buildSystemPrompt,
   buildUserText,
+  normaliseResponse,
   type RecognitionResponse,
 } from '../src/integrations/ai/prompt.js';
 import type { CatalogFood } from '../src/integrations/ai/food-recognition.js';

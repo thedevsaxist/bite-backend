@@ -1,0 +1,19 @@
+[
+  {
+    "image": "images/jollof-dodo-chicken.jpg",
+    "foods": ["jollof_rice", "fried_plantain", "chicken_fried"],
+    "referenceCalories": 1050,
+    "notes": "Weighed: rice 320 g, plantain 140 g, chicken 130 g"
+  },
+  {
+    "image": "images/eba-egusi.jpg",
+    "context": "Cooked with palm oil",
+    "foods": ["eba", "egusi_soup"],
+    "referenceCalories": 900
+  },
+  {
+    "image": "images/zobo.jpg",
+    "foods": ["zobo"],
+    "notes": "Not in the nutrition data: listed by name, no reference calories"
+  }
+]

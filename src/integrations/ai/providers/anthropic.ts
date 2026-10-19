@@ -4,7 +4,6 @@ import { logger } from '../../../config/logger.js';
 import { AppError } from '../../../utils/app-error.js';
 import type {
   FoodRecognitionProvider,
-  RecognisedItem,
   RecognitionInput,
   RecognitionResult,
 } from '../food-recognition.js';
@@ -12,10 +11,9 @@ import {
   buildResponseSchema,
   buildSystemPrompt,
   buildUserText,
-  type RecognitionResponse,
+  normaliseResponse,
+  type Effort,
 } from '../prompt.js';
-
-export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 type AnthropicProviderOptions = {
   apiKey: string;
@@ -58,39 +56,6 @@ function toAppError(err: unknown): AppError {
   }
   // The response couldn't be parsed against the schema.
   return aiError(502, 'AI_INVALID_RESPONSE', 'Food recognition returned an unusable answer', err);
-}
-
-const finiteOrNull = (value: number | null) =>
-  value !== null && Number.isFinite(value) ? value : null;
-
-/** Applies the ranges the schema can't express and drops anything unusable. */
-export function normaliseResponse(response: RecognitionResponse): {
-  items: RecognisedItem[];
-  modelCalorieEstimate: number | null;
-} {
-  const items = response.contains_food
-    ? response.items.flatMap((item): RecognisedItem[] => {
-        const name = item.name.trim();
-        if (!name) return [];
-        const grams = finiteOrNull(item.estimated_grams);
-        const confidence = finiteOrNull(item.confidence);
-        return [
-          {
-            name,
-            nutritionKey: item.nutrition_key,
-            estimatedGrams: grams !== null && grams > 0 ? Math.round(grams * 10) / 10 : null,
-            portionDescription: item.portion_description.trim() || null,
-            confidence: confidence === null ? null : Math.min(1, Math.max(0, confidence)),
-          },
-        ];
-      })
-    : [];
-
-  const estimate = finiteOrNull(response.meal_calorie_estimate);
-  return {
-    items,
-    modelCalorieEstimate: estimate !== null && estimate >= 0 ? Math.round(estimate) : null,
-  };
 }
 
 /** Food recognition with Claude, using structured outputs so the answer always fits the schema. */

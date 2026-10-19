@@ -39,19 +39,24 @@ Decisions:
   - The prompt includes the nutrition catalog so the model maps each item to a reference key or `null`
   - `claude-opus-5-5`, effort `medium`, structured outputs (`messages.parse`), server-side refusal
     fallback (`fallbacks: "default"`)
+- [x] **7b. Gemini provider** (while the Claude key is pending) · `providers/gemini.ts`, `AI_PROVIDER=gemini`,
+      default `gemini-3.8-flash`
 - [x] **8. Analysis pipeline** (FR 7, 14, 15, 20, 21) · module `analyses`
   - `POST /analyses` (multipart image + optional context): validate → AI → match nutrition → calculate → store
   - Unmatched items get no calories (`nutrients: null`, counted in `unmatchedItemCount`)
   - No food → `422 NO_FOOD_DETECTED`; AI failures are stored as failed analyses with the reason
-  - Follow-up: live check with real photos once `ANTHROPIC_API_KEY` is in `.env`
+  - Follow-up: live check with real photos once a Gemini or Claude key is in `.env`
 - [x] **9. Meal records & history** (FR 16, 17, 18, 19) · modules `meals`, `summary`
   - Tables: `meal_records`, `meal_items`
   - Auto-save when `auto_save_results` is on; otherwise `POST /analyses/:id/validate`
   - `POST /analyses/:id/dispute`, `GET /meals?from&to`, `GET /meals/:id`, `PATCH /meals/:id`, `DELETE /meals/:id`
   - `GET /summary/daily?date`, `GET /summary?from&to` (grouped by the user's timezone, default
     `Africa/Lagos`); disputed meals don't count until corrected
-- [ ] **10. Evaluation harness** (Objective 4) · `evaluation/`
-  - `npm run evaluate`: accuracy, precision, recall, F1; calorie MAE and MAPE; response time
-- [ ] **11. Hardening & docs** (non-functional requirements)
-  - API docs / Postman collection, account deletion, cleanup of stale pending analyses, deployment
-    notes (feeds report §4.1)
+- [x] **10. Evaluation harness** (Objective 4) · `src/evaluation/`, test set in `evaluation/dataset/`
+  - `npm run evaluate`: precision, recall, F1, exact-match rate; calorie MAE, MAPE, bias, ±20% share
+    (app estimate and model's own); response time (mean, median, p95); tokens; failures by code
+  - Follow-up: the user builds the labelled photo set, then runs it with a working AI key
+- [x] **11. Hardening & docs** (non-functional requirements)
+  - `docs/openapi.yaml` (checked against the routes by a test), `DELETE /users/me` (records and photos),
+    `requireAuth` rejects deleted/suspended accounts, interrupted analyses marked failed, `docs/DEPLOYMENT.md`
+    (report §4.1)

@@ -7,9 +7,9 @@ import {
   type RecognitionResult,
 } from '../../integrations/ai/index.js';
 import { AppError } from '../../utils/app-error.js';
-import { calculateItemNutrients, type Portion } from '../nutrition/calorie-calculator.js';
 import { nutritionRepository } from '../nutrition/nutrition.repository.js';
 import { analysesRepository } from './analyses.repository.js';
+import { estimateItems } from './estimate-items.js';
 import { prepareImage } from './image-processing.js';
 import { deleteImage, saveImage } from './image-storage.js';
 
@@ -22,30 +22,13 @@ import { deleteImage, saveImage } from './image-storage.js';
 const withAnalysisId = (err: AppError, analysisId: string) =>
   new AppError(err.statusCode, err.message, err.code, { analysisId });
 
-/**
- * How much was eaten. Without a weight estimate, a matched food is assumed to be one typical
- * serving, recorded as "1 serving" so the user can see and correct it.
- */
-function portionFor(
-  item: RecognisedItem,
-  reference: NutritionalReference | undefined,
-): Portion | null {
-  if (item.estimatedGrams !== null) return { quantity: item.estimatedGrams, unit: 'g' };
-  return reference ? { quantity: 1, unit: 'serving' } : null;
-}
-
 function toItemRows(
   analysisId: string,
   items: RecognisedItem[],
   references: Map<string, NutritionalReference>,
 ): NewRecognisedFoodItem[] {
-  return items.map((item, position) => {
-    const reference = item.nutritionKey ? references.get(item.nutritionKey) : undefined;
-    const portion = portionFor(item, reference);
-    // Unmatched items get no nutrient values rather than a made-up one (report §3.5.5).
-    const nutrients = reference && portion ? calculateItemNutrients(reference, portion) : null;
-
-    return {
+  return estimateItems(items, references).map(
+    ({ item, reference, portion, nutrients }, position) => ({
       analysisId,
       position,
       foodName: item.name,
@@ -58,8 +41,8 @@ function toItemRows(
       protein: nutrients?.protein ?? null,
       carbohydrates: nutrients?.carbohydrates ?? null,
       fat: nutrients?.fat ?? null,
-    };
-  });
+    }),
+  );
 }
 
 /** Analyses a meal photo and returns the id of the stored, completed analysis. */

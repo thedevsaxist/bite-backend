@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, lt } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.js';
 import {
   foodAnalyses,
@@ -50,5 +50,25 @@ export const analysesRepository = {
       .where(eq(recognisedFoodItems.analysisId, analysisId))
       .orderBy(asc(recognisedFoodItems.position))
       .all();
+  },
+
+  /** Every photo the user has stored, for deleting them with the account. */
+  listImageReferences(userId: string, executor: Executor = db) {
+    return executor
+      .select({ imageReference: foodAnalyses.imageReference })
+      .from(foodAnalyses)
+      .where(eq(foodAnalyses.userId, userId))
+      .all()
+      .map((row) => row.imageReference);
+  },
+
+  /** Marks analyses still "processing" since before `before` as failed; returns how many. */
+  failStale(before: Date, executor: Executor = db) {
+    return executor
+      .update(foodAnalyses)
+      .set({ analysisStatus: 'failed', failureReason: 'INTERRUPTED', analysedAt: new Date() })
+      .where(and(eq(foodAnalyses.analysisStatus, 'processing'), lt(foodAnalyses.createdAt, before)))
+      .returning({ id: foodAnalyses.id })
+      .all().length;
   },
 };

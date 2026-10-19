@@ -9,8 +9,10 @@ process.env.DATABASE_URL = ':memory:';
 process.env.JWT_ACCESS_SECRET = 'test-access-secret-that-is-at-least-32-chars';
 // Tests store photos on disk, in a throwaway folder per test file, even if .env selects Supabase.
 process.env.STORAGE_DRIVER = 'local';
-// Tests never call the real Claude API, even if .env has a key.
+// Tests never call a real AI service, even if .env has keys.
+process.env.AI_PROVIDER = 'anthropic';
 process.env.ANTHROPIC_API_KEY = '';
+process.env.GEMINI_API_KEY = '';
 const uploadDir = fs.mkdtempSync(path.join(os.tmpdir(), 'calorie-api-uploads-'));
 process.env.UPLOAD_DIR = uploadDir;
 

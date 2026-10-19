@@ -29,6 +29,12 @@ export const appleSignInSchema = z.object({
   name: name.optional(),
 });
 
+export const firebaseSignInSchema = z.object({
+  idToken: z.string().min(1),
+  // Used when the token carries no name (Apple only shares it once, on first sign-in).
+  name: name.optional(),
+});
+
 export const refreshTokenSchema = z.object({
   refreshToken: z.string().min(1),
 });
@@ -37,4 +43,5 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type GoogleSignInInput = z.infer<typeof googleSignInSchema>;
 export type AppleSignInInput = z.infer<typeof appleSignInSchema>;
+export type FirebaseSignInInput = z.infer<typeof firebaseSignInSchema>;
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
