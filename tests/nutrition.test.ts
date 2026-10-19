@@ -43,7 +43,7 @@ describe('GET /nutrition/foods', () => {
   });
 
   it('finds foods by alias', async () => {
-    expect(keys(await search({ q: 'dodo' }))).toEqual(['fried_plantain']);
+    expect(keys(await search({ q: 'dodo' }))).toContain('fried_plantain');
     expect(keys(await search({ q: 'garri' }))).toContain('eba');
   });
 
