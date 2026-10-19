@@ -42,7 +42,8 @@ src/
 │   ├── migrate.ts       # Applies migrations from ./drizzle
 │   └── schema/          # Table definitions (one file per feature)
 ├── integrations/
-│   └── ai/              # Contract for the external food-recognition model + its providers
+│   ├── ai/              # Contract for the external food-recognition model + its providers
+│   └── storage/         # Photo storage: local folder or Supabase Storage
 ├── middlewares/         # Error handler, 404, request validation, rate limiting, auth
 ├── modules/             # One folder per feature
 │   ├── health/          # Health check
@@ -61,7 +62,7 @@ evaluation/              # Recognition and calorie-estimation evaluation (planne
 docs/ROADMAP.md          # Build stages and what each one covers
 drizzle/                 # Generated SQL migrations (committed)
 data/                    # SQLite database file (git-ignored)
-uploads/                 # Uploaded meal images (git-ignored)
+uploads/                 # Meal photos when STORAGE_DRIVER=local (git-ignored)
 ```
 
 Planned modules only have a `*.routes.ts` stub listing their endpoints so far. See
@@ -160,6 +161,45 @@ Each food has a typical serving (e.g. jollof rice: 300 g, "1 plate") so a portio
 converted to grams. Calorie estimates use `Cᵢ = Sᵢ × Cₛ` per item and `C_meal = Σ Cᵢ` per meal
 (`src/modules/nutrition/calorie-calculator.ts`). Nigerian dishes are marked as approximate in their `source`
 until checked against the FAO/INFOODS West African Food Composition Table (2019).
+
+### Meal photos
+
+Meal photos are sent as `multipart/form-data` in a field named `image` (the endpoint arrives with the
+analysis pipeline). The server checks the actual file contents, so the app can send any content type.
+A photo is rejected when it is:
+
+| Problem                                | Status | Error code               |
+| -------------------------------------- | ------ | ------------------------ |
+| Missing                                | 400    | `IMAGE_REQUIRED`         |
+| Over `MAX_UPLOAD_SIZE_MB` (default 10) | 413    | `LIMIT_FILE_SIZE`        |
+| Not an image, or corrupt               | 400    | `INVALID_IMAGE`          |
+| Not JPEG, PNG or WebP (e.g. HEIC, GIF) | 415    | `UNSUPPORTED_IMAGE_TYPE` |
+| Over 40 megapixels                     | 413    | `IMAGE_TOO_LARGE`        |
+| Under 256 px on its shorter side       | 422    | `IMAGE_TOO_SMALL`        |
+| Blurry or blank                        | 422    | `IMAGE_TOO_BLURRY`       |
+
+iPhone photos are HEIC by default, so have the app hand over JPEG (with `image_picker`, setting
+`imageQuality` makes it re-encode to JPEG).
+
+Accepted photos are turned upright, scaled down to at most 1568 px on the long side (never scaled up),
+converted to JPEG and stripped of all metadata, including GPS location, before they are stored or sent
+to the AI model. The blur check scores sharpness as the variance of the Laplacian at 512 px; sharp food
+photos scored 180–1340 in calibration and strongly blurred ones under 20, so the default
+`IMAGE_BLUR_THRESHOLD` is 30.
+
+#### Where photos are stored
+
+`STORAGE_DRIVER` picks the storage. Either way, photos are saved as `<userId>/<uuid>.jpg` and only
+that path goes in the database, so switching storage needs no migration.
+
+- `supabase`: a **private** Supabase Storage bucket (`SUPABASE_STORAGE_BUCKET`, default `meal-images`).
+  The server uses the secret key (`SUPABASE_SECRET_KEY`), so the bucket needs no access policies. The
+  app never talks to Supabase: the API gives it signed links valid for `SIGNED_URL_TTL_SECONDS`
+  (default 1 hour). The server refuses to start if the URL or key is missing.
+- `local` (default): files under `UPLOAD_DIR`. Signed links aren't available, so the API serves the
+  photo itself. Tests always use this.
+
+Storage failures return `503` with code `STORAGE_UNAVAILABLE`.
 
 ### Session handling (for the mobile app)
 

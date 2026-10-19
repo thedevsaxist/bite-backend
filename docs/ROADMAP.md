@@ -25,11 +25,14 @@ Decisions:
   - Follow-up: check the Nigerian dishes marked approximate against the FAO/INFOODS WAFCT (2019)
   - `GET /nutrition/foods?q=`, `GET /nutrition/foods/:id`
   - Calorie calculation: `Cᵢ = Sᵢ × Cₛ`, `C_meal = ΣCᵢ` (report §3.5.5)
-- [ ] **5. Image upload & validation** (FR 5, 6, 8, 9) · module `analyses`
+- [x] **5. Image upload & validation** (FR 5, 6, 8, 9) · module `analyses`
   - multer upload; type, size and dimension checks; blur check (`sharp`); downscale only, never upscale
+  - `analyses/image-upload.ts`, `image-processing.ts`, `image-storage.ts`; no endpoint until stage 8
+  - Storage: private Supabase bucket with signed links (`STORAGE_DRIVER=supabase`), or a local folder
+    (`src/integrations/storage/`)
 - [ ] **6. Analysis records** · module `analyses`
   - Tables: `food_analyses` (keeps the original `ai_result`), `recognised_food_items`
-  - `GET /analyses/:id`, `GET /analyses/:id/image`
+  - `GET /analyses/:id` (includes a signed `imageUrl` when stored in Supabase), `GET /analyses/:id/image`
 - [ ] **7. AI recognition (Claude)** (FR 10, 11, 12, 20) · `src/integrations/ai/`
   - `prompt.ts`, `providers/anthropic.ts`; Zod-validated structured output; provider errors mapped to API errors
   - The prompt includes the nutrition catalog so the model maps each item to a reference key or `null`

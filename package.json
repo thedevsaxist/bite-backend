@@ -26,6 +26,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@supabase/supabase-js": "2.117.2",
     "argon2": "^0.45.1",
     "better-sqlite3": "^13.0.3",
     "compression": "^1.8.2",
@@ -39,6 +40,7 @@
     "multer": "^2.4.0",
     "pino": "^10.4.0",
     "pino-http": "^11.0.0",
+    "sharp": "^0.35.5",
     "zod": "^4.6.7"
   },
   "devDependencies": {
