@@ -8,5 +8,7 @@ process.env.JWT_ACCESS_SECRET = 'test-access-secret-that-is-at-least-32-chars';
 beforeAll(async () => {
   // Imported lazily so the env vars above are set before the database module loads.
   const { runMigrations } = await import('../src/db/migrator.js');
+  const { seedNutritionReferences } = await import('../src/db/seeds/seed-nutrition.js');
   runMigrations();
+  seedNutritionReferences();
 });

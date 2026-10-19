@@ -20,8 +20,9 @@ Decisions:
     `PATCH /settings`
   - Mifflin–St Jeor BMR × activity factor, adjusted for the weight goal, with a minimum. A new
     `dietary_references` row is written whenever the profile changes.
-- [ ] **4. Nutrition reference data** (FR 13, 21) · module `nutrition`
-  - Table: `nutritional_references`; seed data in `src/db/seeds/`
+- [x] **4. Nutrition reference data** (FR 13, 21) · module `nutrition`
+  - Table: `nutritional_references`; 53 foods in `src/db/seeds/nutrition-references.ts`, `npm run db:seed`
+  - Follow-up: check the Nigerian dishes marked approximate against the FAO/INFOODS WAFCT (2019)
   - `GET /nutrition/foods?q=`, `GET /nutrition/foods/:id`
   - Calorie calculation: `Cᵢ = Sᵢ × Cₛ`, `C_meal = ΣCᵢ` (report §3.5.5)
 - [ ] **5. Image upload & validation** (FR 5, 6, 8, 9) · module `analyses`

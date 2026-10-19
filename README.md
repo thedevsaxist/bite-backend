@@ -7,23 +7,26 @@ Backend for the calorie-estimation Flutter app. Built with Express 5, TypeScript
 ```bash
 npm install
 cp .env.example .env   # then fill in the secrets
+npm run db:migrate     # create the tables
+npm run db:seed        # load the nutritional reference data
 npm run dev            # http://localhost:4000/api/v1/health
 ```
 
 ## Scripts
 
-| Script                | What it does                                              |
-| --------------------- | --------------------------------------------------------- |
-| `npm run dev`         | Start the server with live reload (tsx watch)             |
-| `npm run build`       | Compile TypeScript to `dist/`                             |
-| `npm start`           | Run the compiled server                                   |
-| `npm test`            | Run the test suite (Vitest + Supertest)                   |
-| `npm run typecheck`   | Type-check without emitting                               |
-| `npm run lint`        | Lint with ESLint                                          |
-| `npm run format`      | Format with Prettier                                      |
-| `npm run db:generate` | Generate a SQL migration from changes in `src/db/schema/` |
-| `npm run db:migrate`  | Apply pending migrations to the database                  |
-| `npm run db:studio`   | Open Drizzle Studio to browse the database                |
+| Script                | What it does                                                |
+| --------------------- | ----------------------------------------------------------- |
+| `npm run dev`         | Start the server with live reload (tsx watch)               |
+| `npm run build`       | Compile TypeScript to `dist/`                               |
+| `npm start`           | Run the compiled server                                     |
+| `npm test`            | Run the test suite (Vitest + Supertest)                     |
+| `npm run typecheck`   | Type-check without emitting                                 |
+| `npm run lint`        | Lint with ESLint                                            |
+| `npm run format`      | Format with Prettier                                        |
+| `npm run db:generate` | Generate a SQL migration from changes in `src/db/schema/`   |
+| `npm run db:migrate`  | Apply pending migrations to the database                    |
+| `npm run db:seed`     | Load or update the nutritional reference data (re-runnable) |
+| `npm run db:studio`   | Open Drizzle Studio to browse the database                  |
 
 ## Project structure
 
@@ -148,6 +151,15 @@ Mifflin–St Jeor BMR × an activity factor, −500 / 0 / +500 kcal for the goal
 
 Until the profile is set up, the profile endpoints return `404` with code `PROFILE_NOT_FOUND`.
 Settings need no setup: `GET /settings` returns the defaults (`autoSaveResults: true`).
+
+### Nutritional reference data
+
+Reference foods live in `src/db/seeds/nutrition-references.ts` (all values per 100 g) and are loaded with
+`npm run db:seed`, which updates existing rows by `key`, so edit the file and re-run it to correct a value.
+Each food has a typical serving (e.g. jollof rice: 300 g, "1 plate") so a portion of "1 serving" can be
+converted to grams. Calorie estimates use `Cᵢ = Sᵢ × Cₛ` per item and `C_meal = Σ Cᵢ` per meal
+(`src/modules/nutrition/calorie-calculator.ts`). Nigerian dishes are marked as approximate in their `source`
+until checked against the FAO/INFOODS West African Food Composition Table (2019).
 
 ### Session handling (for the mobile app)
 

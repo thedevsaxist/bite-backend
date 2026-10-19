@@ -6,3 +6,4 @@ export * from './users.js';
 export * from './auth.js';
 export * from './profile.js';
 export * from './settings.js';
+export * from './nutrition.js';
