@@ -36,6 +36,13 @@
       "when": 1792421389301,
       "tag": "0004_analysis_token_usage",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1792422528096,
+      "tag": "0005_meal_records",
+      "breakpoints": true
     }
   ]
 }

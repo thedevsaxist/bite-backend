@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { asc, desc, eq } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.js';
 import {
   dietaryReferences,
@@ -33,6 +33,16 @@ export const profileRepository = {
       .orderBy(desc(dietaryReferences.calculatedAt))
       .limit(1)
       .get();
+  },
+
+  /** All of the user's dietary references, oldest first. */
+  listReferences(userId: string, executor: Executor = db) {
+    return executor
+      .select()
+      .from(dietaryReferences)
+      .where(eq(dietaryReferences.userId, userId))
+      .orderBy(asc(dietaryReferences.calculatedAt))
+      .all();
   },
 
   createReference(data: NewDietaryReference, executor: Executor = db) {

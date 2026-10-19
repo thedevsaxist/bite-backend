@@ -56,6 +56,15 @@ export const nutritionRepository = {
       .all();
   },
 
+  findByIds(ids: string[], executor: Executor = db) {
+    if (ids.length === 0) return [];
+    return executor
+      .select()
+      .from(nutritionalReferences)
+      .where(inArray(nutritionalReferences.id, ids))
+      .all();
+  },
+
   findById(id: string, executor: Executor = db) {
     return executor
       .select()

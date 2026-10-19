@@ -15,5 +15,15 @@ export const createAnalysisSchema = z.object({
     .transform((value) => value || undefined),
 });
 
+export const disputeAnalysisSchema = z.strictObject({
+  reason: z
+    .string()
+    .trim()
+    .max(500)
+    .optional()
+    .transform((value) => value || undefined),
+});
+
+export type DisputeAnalysisBody = z.infer<typeof disputeAnalysisSchema>;
 export type CreateAnalysisBody = z.infer<typeof createAnalysisSchema>;
 export type AnalysisIdParams = z.infer<typeof analysisIdSchema>;

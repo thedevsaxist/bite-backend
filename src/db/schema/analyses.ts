@@ -35,6 +35,9 @@ export const foodAnalyses = sqliteTable(
     aiInputTokens: integer(),
     aiOutputTokens: integer(),
     analysedAt: timestamp(),
+    // Set when the user disputes the result as not representing the meal (report §3.5.2).
+    disputedAt: timestamp(),
+    disputeReason: text(),
     createdAt: createdAt(),
   },
   (t) => [index('food_analyses_user_created_idx').on(t.userId, t.createdAt)],

@@ -6,9 +6,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../src/app.js';
 import { db } from '../src/db/index.js';
 import { foodAnalyses } from '../src/db/schema/index.js';
-import type { RecognisedItem, RecognitionResult } from '../src/integrations/ai/index.js';
 import { foodRecognitionProvider } from '../src/integrations/ai/index.js';
 import { AppError } from '../src/utils/app-error.js';
+import { aiAnswer, jollofPlantainZobo } from './fake-ai.js';
 import { blurryJpeg, sharpJpeg } from './images.js';
 import { signUp } from './helpers.js';
 
@@ -19,42 +19,6 @@ vi.mock('../src/integrations/ai/index.js', () => ({
 }));
 
 const app = createApp();
-
-const item = (overrides: Partial<RecognisedItem>): RecognisedItem => ({
-  name: 'food',
-  nutritionKey: null,
-  estimatedGrams: null,
-  portionDescription: null,
-  confidence: 0.9,
-  ...overrides,
-});
-
-const aiAnswer = (items: RecognisedItem[]): RecognitionResult => ({
-  items,
-  modelCalorieEstimate: 950,
-  raw: { model_answer: 'as received' },
-  provider: 'anthropic',
-  model: 'claude-opus-5-5',
-  usage: { inputTokens: 2100, outputTokens: 450 },
-});
-
-const jollofPlantainZobo = aiAnswer([
-  item({
-    name: 'jollof rice',
-    nutritionKey: 'jollof_rice',
-    estimatedGrams: 300,
-    portionDescription: '1 plate',
-    confidence: 0.93,
-  }),
-  // No weight estimate: should become one typical serving (150 g).
-  item({
-    name: 'fried plantain',
-    nutritionKey: 'fried_plantain',
-    portionDescription: 'a few slices',
-  }),
-  // Not in the catalog: no nutrients.
-  item({ name: 'zobo drink', estimatedGrams: 300, portionDescription: '1 glass', confidence: 0.6 }),
-]);
 
 async function analyse(auth: string, fields: { context?: string } = {}) {
   const req = request(app).post('/api/v1/analyses').set('Authorization', auth);

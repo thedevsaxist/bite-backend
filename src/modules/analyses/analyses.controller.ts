@@ -1,7 +1,12 @@
 import type { Request, Response } from 'express';
 import { authUser } from '../../middlewares/require-auth.js';
 import { sendSuccess } from '../../utils/api-response.js';
-import type { AnalysisIdParams, CreateAnalysisBody } from './analyses.schemas.js';
+import type { MealChanges } from '../meals/meals.schemas.js';
+import type {
+  AnalysisIdParams,
+  CreateAnalysisBody,
+  DisputeAnalysisBody,
+} from './analyses.schemas.js';
 import { analysesService } from './analyses.service.js';
 import { uploadedImage } from './image-upload.js';
 
@@ -22,5 +27,17 @@ export const analysesController = {
     const image = await analysesService.getImage(authUser(req).id, id);
     // Stored photos never change, but they are private to the user.
     res.type('image/jpeg').set('Cache-Control', 'private, max-age=3600').send(image);
+  },
+
+  async validate(req: Request, res: Response) {
+    const { id } = req.params as AnalysisIdParams;
+    const result = await analysesService.validate(authUser(req).id, id, req.body as MealChanges);
+    sendSuccess(res, result, 201);
+  },
+
+  async dispute(req: Request, res: Response) {
+    const { id } = req.params as AnalysisIdParams;
+    const { reason } = req.body as DisputeAnalysisBody;
+    sendSuccess(res, await analysesService.dispute(authUser(req).id, id, reason));
   },
 };

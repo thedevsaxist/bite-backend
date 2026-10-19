@@ -3,13 +3,15 @@ import { analysisRateLimiter } from '../../middlewares/rate-limit.js';
 import { requireAuth } from '../../middlewares/require-auth.js';
 import { validate } from '../../middlewares/validate.js';
 import { analysesController } from './analyses.controller.js';
-import { analysisIdSchema, createAnalysisSchema } from './analyses.schemas.js';
+import { mealChangesSchema } from '../meals/meals.schemas.js';
+import {
+  analysisIdSchema,
+  createAnalysisSchema,
+  disputeAnalysisSchema,
+} from './analyses.schemas.js';
 import { uploadMealImage } from './image-upload.js';
 
 // Report §3.5.1, §3.5.4, §3.5.5: food analyses. The stored analysis keeps the original AI result.
-// Still to come:
-//   POST /analyses/:id/validate    save the (optionally edited) result as a meal record    (stage 9)
-//   POST /analyses/:id/dispute     mark the result as not representing the meal            (stage 9)
 export const analysesRouter = Router();
 
 analysesRouter.use(requireAuth);
@@ -28,4 +30,14 @@ analysesRouter.get(
   '/:id/image',
   validate({ params: analysisIdSchema }),
   analysesController.getImage,
+);
+analysesRouter.post(
+  '/:id/validate',
+  validate({ params: analysisIdSchema, body: mealChangesSchema }),
+  analysesController.validate,
+);
+analysesRouter.post(
+  '/:id/dispute',
+  validate({ params: analysisIdSchema, body: disputeAnalysisSchema }),
+  analysesController.dispute,
 );

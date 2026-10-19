@@ -1,6 +1,10 @@
+import { db } from '../../db/index.js';
 import type { FoodAnalysis, RecognisedFoodItem } from '../../db/schema/index.js';
 import { AppError } from '../../utils/app-error.js';
+import type { MealChanges } from '../meals/meals.schemas.js';
+import { mealsService } from '../meals/meals.service.js';
 import { sumNutrients, type Nutrients } from '../nutrition/calorie-calculator.js';
+import { settingsService } from '../settings/settings.service.js';
 import { analyseMealPhoto } from './analysis-pipeline.js';
 import { analysesRepository } from './analyses.repository.js';
 import { imageUrl, readImage } from './image-storage.js';
@@ -53,6 +57,11 @@ async function toPublicAnalysis(analysis: FoodAnalysis, rows: ItemRow[]) {
       outputTokens: analysis.aiOutputTokens,
     },
     failureReason: analysis.failureReason,
+    // The meal record saved from this analysis, or null if it hasn't been saved (auto-save off).
+    meal: mealsService.savedMealFor(analysis.id),
+    dispute: analysis.disputedAt
+      ? { reason: analysis.disputeReason, disputedAt: analysis.disputedAt }
+      : null,
     processingTimeMs: analysis.processingTimeMs,
     analysedAt: analysis.analysedAt,
     createdAt: analysis.createdAt,
@@ -63,7 +72,38 @@ export const analysesService = {
   /** Runs the analysis pipeline on an uploaded photo and returns the stored analysis. */
   async create(userId: string, photo: Buffer, context?: string) {
     const id = await analyseMealPhoto(userId, photo, context);
-    // Stage 9: save it to the food-intake history here when auto-save is on.
+    // Report §3.5.1: with auto-save on (the default) the result goes straight into the
+    // food-intake history; otherwise it waits for the user to validate it.
+    if (settingsService.isAutoSaveEnabled(userId)) {
+      mealsService.createFromAnalysis(userId, id, { validatedByUser: false });
+    }
+    return analysesService.getForUser(userId, id);
+  },
+
+  /** Saves the result (optionally corrected) as a meal record, when auto-save is off. */
+  async validate(userId: string, id: string, changes: MealChanges) {
+    const meal = mealsService.createFromAnalysis(userId, id, { changes, validatedByUser: true });
+    return mealsService.get(userId, meal.id);
+  },
+
+  /**
+   * Records that the result doesn't represent the meal (report §3.5.2 "Dispute Result"). A meal
+   * saved from it stops counting towards intake until the user corrects it.
+   */
+  async dispute(userId: string, id: string, reason?: string) {
+    const analysis = analysesRepository.findForUser(id, userId);
+    if (!analysis) throw analysisNotFound();
+    if (analysis.analysisStatus !== 'completed') {
+      throw new AppError(
+        409,
+        'Only a completed analysis can be disputed',
+        'ANALYSIS_NOT_COMPLETED',
+      );
+    }
+    db.transaction((tx) => {
+      analysesRepository.update(id, { disputedAt: new Date(), disputeReason: reason ?? null }, tx);
+      mealsService.markDisputed(id, tx);
+    });
     return analysesService.getForUser(userId, id);
   },
 

@@ -288,6 +288,70 @@ another model can be added as a new file in `providers/`.
 | Photo declined by every model               | 422    | `AI_REFUSED`          |
 | Answer unusable                             | 502    | `AI_INVALID_RESPONSE` |
 
+### Meal records (food-intake history)
+
+A meal record is the user's final version of an analysed meal. The analysis keeps the original AI
+result; edits only change the meal record, so the two can be compared later.
+
+- **Auto-save on** (`autoSaveResults: true`, the default): every completed analysis is saved straight
+  away. `analysis.meal` in the `POST /analyses` response is `{ id, status, validatedByUser: false }`.
+- **Auto-save off:** `analysis.meal` is `null` until the user reviews the result and calls
+  `POST /analyses/:id/validate`, either with no body to accept it as it is, or with corrections.
+  An analysis can be saved once (`409 MEAL_ALREADY_SAVED`, with `details.mealId`).
+- **Editing:** `PATCH /meals/:id` with `items` replaces the meal's items and recalculates the nutrients.
+  An empty body confirms the meal as it is. Either way `validatedByUser` becomes `true`.
+- **Disputing:** `POST /analyses/:id/dispute` records that the AI result is wrong (kept for the
+  evaluation). A meal saved from it gets `status: "disputed"` and stops counting in the summaries
+  until the user corrects or confirms it with `PATCH /meals/:id`.
+- **Deleting** a meal keeps the analysis, which can then be validated again.
+
+Each item in `items` (validate and PATCH):
+
+```json
+{
+  "recognisedItemId": "...",
+  "name": "jollof rice",
+  "nutritionReferenceId": "...",
+  "quantity": 150,
+  "unit": "g"
+}
+```
+
+- `recognisedItemId`: the analysis item this corrects; leave it out for a food the AI missed.
+- `nutritionReferenceId`: a food from `/nutrition/foods`. Its nutrients are calculated from the
+  portion, so don't send nutrient values with it.
+- For a food without reference data, send `calories` (and optionally `protein`, `carbohydrates`,
+  `fat`) yourself; missing macros count as 0. Without them it is saved with no nutrients.
+- `unit`: `g` | `ml` | `serving`. `serving` needs a reference food or your own calories.
+- Errors: `UNKNOWN_RECOGNISED_ITEM`, `UNKNOWN_NUTRITION_REFERENCE`, `PORTION_NEEDS_REFERENCE`
+  (all `400`, with `details.path` such as `items.2`).
+
+### Daily summaries
+
+Summaries add up the saved meals per calendar day in the user's timezone (`timezone`, an IANA name;
+default `Africa/Lagos`), so a meal at 00:30 counts towards that new day. Send the device's timezone.
+
+`GET /summary/daily?date=2026-10-15` returns:
+
+```json
+{
+  "summary": {
+    "timezone": "Africa/Lagos",
+    "date": "2026-10-15",
+    "totals": { "calories": 2700, "protein": 33, "carbohydrates": 423, "fat": 99 },
+    "mealCount": 3,
+    "dailyCalorieReference": 2759,
+    "remainingCalories": 59,
+    "percentOfReference": 98
+  }
+}
+```
+
+The reference is the one that applied on that day (the latest calculated on or before it), so past
+days keep the target the user had then. Days before the profile existed have `null` reference fields.
+`GET /summary?from=&to=` returns `days` (every day in the range, including empty ones), `totals`,
+`loggedDays` and `averagePerLoggedDay` (averaged over days with at least one meal).
+
 ### Session handling (for the mobile app)
 
 - The **access token** is a JWT valid for 15 minutes. When it expires, protected routes return

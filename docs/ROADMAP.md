@@ -44,11 +44,12 @@ Decisions:
   - Unmatched items get no calories (`nutrients: null`, counted in `unmatchedItemCount`)
   - No food → `422 NO_FOOD_DETECTED`; AI failures are stored as failed analyses with the reason
   - Follow-up: live check with real photos once `ANTHROPIC_API_KEY` is in `.env`
-- [ ] **9. Meal records & history** (FR 16, 17, 18, 19) · modules `meals`, `summary`
+- [x] **9. Meal records & history** (FR 16, 17, 18, 19) · modules `meals`, `summary`
   - Tables: `meal_records`, `meal_items`
   - Auto-save when `auto_save_results` is on; otherwise `POST /analyses/:id/validate`
   - `POST /analyses/:id/dispute`, `GET /meals?from&to`, `GET /meals/:id`, `PATCH /meals/:id`, `DELETE /meals/:id`
-  - `GET /summary/daily?date`, `GET /summary?from&to`
+  - `GET /summary/daily?date`, `GET /summary?from&to` (grouped by the user's timezone, default
+    `Africa/Lagos`); disputed meals don't count until corrected
 - [ ] **10. Evaluation harness** (Objective 4) · `evaluation/`
   - `npm run evaluate`: accuracy, precision, recall, F1; calorie MAE and MAPE; response time
 - [ ] **11. Hardening & docs** (non-functional requirements)

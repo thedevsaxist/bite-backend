@@ -103,7 +103,8 @@ describe('prepareImage', () => {
   });
 
   it('rejects unsupported formats', async () => {
-    const gif = await sharpImage().gif().toBuffer();
+    // Small, because encoding a large noisy GIF is slow; the format is checked before the size.
+    const gif = await sharpImage({ width: 64, height: 64 }).gif().toBuffer();
     const svg = Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600"/></svg>',
     );
